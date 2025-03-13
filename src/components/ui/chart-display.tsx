@@ -1,6 +1,6 @@
 
 import { ChartData as ChartDataType } from "@/types/chat";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -26,8 +26,12 @@ interface ChartDisplayProps {
 export function ChartDisplay({ chartData }: ChartDisplayProps) {
   const { type, data, options, title, description } = chartData;
   const chartRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Set visibility after component mounts to ensure chart stays visible
+    setIsVisible(true);
+
     if (chartRef.current) {
       const observer = new IntersectionObserver(
         (entries) => {
@@ -74,18 +78,18 @@ export function ChartDisplay({ chartData }: ChartDisplayProps) {
               {data.datasets ? (
                 data.datasets.map((dataset: any, index: number) => (
                   <Bar
-                    key={index}
+                    key={`dataset-${index}`}
                     dataKey={(datum: any) => datum}
                     name={dataset.label}
                     data={dataset.data}
                     fill={dataset.backgroundColor || "#3b82f6"}
                   >
-                    {dataset.data.map((_: any, index: number) => (
+                    {dataset.data.map((_: any, dataIndex: number) => (
                       <Cell 
-                        key={`cell-${index}`} 
+                        key={`cell-${index}-${dataIndex}`} 
                         fill={
                           Array.isArray(dataset.backgroundColor) 
-                            ? dataset.backgroundColor[index % dataset.backgroundColor.length] 
+                            ? dataset.backgroundColor[dataIndex % dataset.backgroundColor.length] 
                             : dataset.backgroundColor || "#3b82f6"
                         } 
                       />
@@ -197,7 +201,7 @@ export function ChartDisplay({ chartData }: ChartDisplayProps) {
   return (
     <div
       ref={chartRef}
-      className="w-full rounded-lg overflow-hidden border border-border bg-card text-card-foreground shadow-sm opacity-0"
+      className={`w-full rounded-lg overflow-hidden border border-border bg-card text-card-foreground shadow-sm ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
     >
       {title && (
         <div className="p-4 border-b border-border">
