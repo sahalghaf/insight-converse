@@ -31,10 +31,9 @@ export function ConversationSidebar({
   return (
     <div
       className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-sidebar flex flex-col border-r border-sidebar-border
-        transform transition-transform duration-300 ease-spring
-        ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        ${!isMobile && isOpen ? "lg:translate-x-0 lg:relative" : ""}
+        ${isMobile ? "fixed inset-y-0 left-0 z-50 w-64" : "h-full w-full"}
+        bg-sidebar flex flex-col border-r border-sidebar-border
+        ${isMobile ? `transform transition-transform duration-300 ease-spring ${isOpen ? "translate-x-0" : "-translate-x-full"}` : ""}
       `}
     >
       <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
@@ -43,7 +42,7 @@ export function ConversationSidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-sidebar-foreground hover:bg-sidebar-accent/50"
+            className="text-sidebar-foreground hover:bg-sidebar-accent/50"
             onClick={onClose}
           >
             <X className="h-4 w-4" />

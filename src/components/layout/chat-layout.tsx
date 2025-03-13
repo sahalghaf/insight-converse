@@ -7,6 +7,11 @@ import { InputBox } from "@/components/chat/input-box";
 import { Button } from "@/components/ui/button";
 import { Menu, Zap } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { 
+  ResizablePanelGroup, 
+  ResizablePanel, 
+  ResizableHandle 
+} from "@/components/ui/resizable";
 
 export function ChatLayout() {
   const {
@@ -46,54 +51,90 @@ export function ChatLayout() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <ConversationSidebar
-          conversations={conversations}
-          activeConversationId={activeConversationId}
-          onSelectConversation={setActiveConversationId}
-          onNewConversation={createNewConversation}
-          onDeleteConversation={deleteConversation}
-          onRenameConversation={updateConversationTitle}
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-        />
-        
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          <div className="h-14 flex items-center px-4 border-b bg-card/60 backdrop-blur-sm sticky top-0 z-10">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="mr-2"
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+      <ResizablePanelGroup 
+        direction="horizontal" 
+        className="flex-1 overflow-hidden"
+      >
+        {isSidebarOpen && !isMobile && (
+          <>
+            <ResizablePanel 
+              defaultSize={20} 
+              minSize={15} 
+              maxSize={40}
+              className="relative"
             >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle sidebar</span>
-            </Button>
-            <h1 className="font-semibold truncate">
-              {activeConversation.title || "New Conversation"}
-            </h1>
-          </div>
-          
-          <div
-            className={`
-              fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300 z-40
-              ${isSidebarOpen && isMobile ? "opacity-100" : "opacity-0 pointer-events-none"}
-            `}
-            onClick={() => setIsSidebarOpen(false)}
-          />
-          
-          <main className="flex-1 overflow-hidden flex flex-col w-full">
-            <MessageList messages={activeConversation.messages} />
-            
-            <div className="p-4 md:p-6">
-              <InputBox
-                onSend={sendMessage}
-                isWaitingForResponse={isWaitingForResponse}
+              <ConversationSidebar
+                conversations={conversations}
+                activeConversationId={activeConversationId}
+                onSelectConversation={setActiveConversationId}
+                onNewConversation={createNewConversation}
+                onDeleteConversation={deleteConversation}
+                onRenameConversation={updateConversationTitle}
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
               />
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+          </>
+        )}
+        
+        <ResizablePanel defaultSize={isSidebarOpen && !isMobile ? 80 : 100}>
+          <div className="flex-1 flex flex-col overflow-hidden relative h-full">
+            <div className="h-14 flex items-center px-4 border-b bg-card/60 backdrop-blur-sm sticky top-0 z-10">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mr-2"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle sidebar</span>
+              </Button>
+              <h1 className="font-semibold truncate">
+                {activeConversation.title || "New Conversation"}
+              </h1>
             </div>
-          </main>
-        </div>
-      </div>
+            
+            {/* Mobile sidebar overlay */}
+            {isMobile && (
+              <div
+                className={`
+                  fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity duration-300 z-40
+                  ${isSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"}
+                `}
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
+            
+            {/* Mobile sidebar */}
+            {isMobile && isSidebarOpen && (
+              <div className="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar">
+                <ConversationSidebar
+                  conversations={conversations}
+                  activeConversationId={activeConversationId}
+                  onSelectConversation={setActiveConversationId}
+                  onNewConversation={createNewConversation}
+                  onDeleteConversation={deleteConversation}
+                  onRenameConversation={updateConversationTitle}
+                  isOpen={isSidebarOpen}
+                  onClose={() => setIsSidebarOpen(false)}
+                />
+              </div>
+            )}
+            
+            <main className="flex-1 overflow-hidden flex flex-col w-full">
+              <MessageList messages={activeConversation.messages} />
+              
+              <div className="p-4 md:p-6">
+                <InputBox
+                  onSend={sendMessage}
+                  isWaitingForResponse={isWaitingForResponse}
+                />
+              </div>
+            </main>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
