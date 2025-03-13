@@ -1,9 +1,10 @@
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Message as MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
 import { ChartDisplay } from "@/components/ui/chart-display";
-import { Loader2, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Zap, AlertCircle } from "lucide-react";
 import { 
   Collapsible, 
   CollapsibleTrigger, 
@@ -12,6 +13,16 @@ import {
 import { paths } from "@/config/api-paths";
 
 const API_BASE_URL = 'http://localhost:9800';
+
+// Helper functions to check data availability
+const hasVisualData = (message: MessageType) => 
+  message.visuals && message.visuals.length > 0;
+  
+const hasTableData = (message: MessageType) => 
+  message.tables && message.tables.length > 0;
+
+const hasAnalysisData = (message: MessageType) =>
+  message.analysis !== undefined && message.analysis !== null;
 
 interface MessageProps {
   message: MessageType;
@@ -23,21 +34,39 @@ export function Message({ message }: MessageProps) {
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(initialAnalysis || null);
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (messageRef.current) {
       messageRef.current.scrollIntoView({ behavior: "smooth" });
     }
+
+    // Cleanup function to abort any pending requests
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const handleOpenAnalysis = useCallback(async (open: boolean) => {
     setIsAnalysisOpen(open);
     
-    if (open && !analysis && !isLoadingAnalysis && !isLoading && role === 'assistant') {
+    if (open && !analysis && !isLoadingAnalysis && !isLoading && role === 'assistant' && !analysisError) {
       setIsLoadingAnalysis(true);
       
+      // Create new AbortController for this request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+      
       try {
-        const response = await fetch(`${API_BASE_URL}${paths.ANALYSIS_API}/${id}`);
+        const response = await fetch(
+          `${API_BASE_URL}${paths.ANALYSIS_API}/${id}`, 
+          { signal: abortControllerRef.current.signal }
+        );
         
         if (!response.ok) {
           throw new Error('Failed to fetch analysis');
@@ -45,14 +74,20 @@ export function Message({ message }: MessageProps) {
         
         const data = await response.json();
         setAnalysis(data.analysis);
+        
+        // Reset error state if we succeed
+        setAnalysisError(null);
       } catch (error) {
-        console.error('Error fetching analysis:', error);
-        setAnalysis('Failed to load analysis. Please try again.');
+        // Only set error if it's not an abort error
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          console.error('Error fetching analysis:', error);
+          setAnalysisError('Failed to load analysis. Please try again.');
+        }
       } finally {
         setIsLoadingAnalysis(false);
       }
     }
-  }, [analysis, isLoadingAnalysis, isLoading, role, id]);
+  }, [analysis, isLoadingAnalysis, isLoading, role, id, analysisError]);
 
   const formatMessageContent = (content: string) => {
     return content
@@ -100,9 +135,9 @@ export function Message({ message }: MessageProps) {
           )}
         </div>
 
-        {visuals && visuals.length > 0 && !isLoading && (
+        {!isLoading && hasVisualData(message) && (
           <div className="w-full max-w-lg">
-            {visuals.map((visual, index) => (
+            {visuals!.map((visual, index) => (
               <div key={index} className="mt-2">
                 <ChartDisplay chartData={visual} />
               </div>
@@ -110,9 +145,9 @@ export function Message({ message }: MessageProps) {
           </div>
         )}
 
-        {tables && tables.length > 0 && !isLoading && (
+        {!isLoading && hasTableData(message) && (
           <div className="w-full" style={{ maxWidth: '100%' }}>
-            {tables.map((table, index) => (
+            {tables!.map((table, index) => (
               <div key={index} className="mt-2 overflow-auto">
                 <DataTable tableData={table} />
               </div>
@@ -144,10 +179,18 @@ export function Message({ message }: MessageProps) {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Loading analysis...</span>
                   </div>
+                ) : analysisError ? (
+                  <div className="flex items-center gap-2 py-2 text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{analysisError}</span>
+                  </div>
                 ) : analysis ? (
                   formatMessageContent(analysis)
                 ) : (
-                  <p>No additional analysis available for this response.</p>
+                  <div className="flex items-center gap-2 py-2 text-muted-foreground">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>No additional analysis available for this response.</span>
+                  </div>
                 )}
               </CollapsibleContent>
             </Collapsible>
