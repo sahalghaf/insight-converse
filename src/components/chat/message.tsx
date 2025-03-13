@@ -1,18 +1,24 @@
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Message as MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
 import { ChartDisplay } from "@/components/ui/chart-display";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { 
+  Collapsible, 
+  CollapsibleTrigger, 
+  CollapsibleContent 
+} from "@/components/ui/collapsible";
 
 interface MessageProps {
   message: MessageType;
 }
 
 export function Message({ message }: MessageProps) {
-  const { role, content, visuals, tables, isLoading, processingStage } = message;
+  const { role, content, visuals, tables, isLoading, processingStage, analysis } = message;
   const messageRef = useRef<HTMLDivElement>(null);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
 
   useEffect(() => {
     if (messageRef.current) {
@@ -78,6 +84,31 @@ export function Message({ message }: MessageProps) {
                 <DataTable tableData={table} />
               </div>
             ))}
+          </div>
+        )}
+
+        {analysis && !isLoading && (
+          <div className="w-full max-w-3xl mt-2">
+            <Collapsible
+              open={isAnalysisOpen}
+              onOpenChange={setIsAnalysisOpen}
+              className="border border-border rounded-lg overflow-hidden bg-card/70 backdrop-blur-sm"
+            >
+              <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span>AI Analysis</span>
+                </div>
+                {isAnalysisOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-4 py-3 text-sm border-t border-border bg-card/30">
+                {formatMessageContent(analysis)}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         )}
       </div>
