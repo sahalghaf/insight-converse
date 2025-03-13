@@ -12,5 +12,4 @@ export const paths = {
   ANALYSIS_API: '/api/analysis',
   CONVERSATION_API: '/api/conversations',
   FIX_TOPIC_API: '/api/conversations/fixTopic',
-  FEEDBACK_API: '/api/feedback',
 };

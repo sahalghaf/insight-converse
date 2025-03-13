@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Message as MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -10,7 +11,6 @@ import {
   CollapsibleContent 
 } from "@/components/ui/collapsible";
 import { paths } from "@/config/api-paths";
-import { MessageFeedback } from "@/components/chat/message-feedback";
 
 const API_BASE_URL = 'http://localhost:9800';
 
@@ -26,11 +26,10 @@ const hasAnalysisData = (message: MessageType) =>
 
 interface MessageProps {
   message: MessageType;
-  onSubmitFeedback?: (messageId: string, feedback: 'helpful' | 'unhelpful', comment?: string) => void;
 }
 
-export function Message({ message, onSubmitFeedback }: MessageProps) {
-  const { id, role, content, visuals, tables, isLoading, processingStage, analysis: initialAnalysis, feedbackSubmitted } = message;
+export function Message({ message }: MessageProps) {
+  const { id, role, content, visuals, tables, isLoading, processingStage, analysis: initialAnalysis } = message;
   const messageRef = useRef<HTMLDivElement>(null);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(initialAnalysis || null);
@@ -91,10 +90,6 @@ export function Message({ message, onSubmitFeedback }: MessageProps) {
   }, [analysis, isLoadingAnalysis, isLoading, role, id, analysisError]);
 
   const formatMessageContent = (content: string) => {
-    if (!content || typeof content !== 'string') {
-      return null;
-    }
-    
     return content
       .split("\n")
       .map((line, i) => (
@@ -161,58 +156,45 @@ export function Message({ message, onSubmitFeedback }: MessageProps) {
         )}
 
         {!isLoading && role === 'assistant' && (
-          <>
-            <div className="w-full mt-2">
-              <Collapsible
-                open={isAnalysisOpen}
-                onOpenChange={handleOpenAnalysis}
-                className="border border-border rounded-lg overflow-hidden bg-card/70 backdrop-blur-sm"
-              >
-                <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" />
-                    <span>AI Analysis</span>
+          <div className="w-full mt-2">
+            <Collapsible
+              open={isAnalysisOpen}
+              onOpenChange={handleOpenAnalysis}
+              className="border border-border rounded-lg overflow-hidden bg-card/70 backdrop-blur-sm"
+            >
+              <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span>AI Analysis</span>
+                </div>
+                {isAnalysisOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-4 py-3 text-sm border-t border-border bg-card/30">
+                {isLoadingAnalysis ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading analysis...</span>
                   </div>
-                  {isAnalysisOpen ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="px-4 py-3 text-sm border-t border-border bg-card/30">
-                  {isLoadingAnalysis ? (
-                    <div className="flex items-center gap-2 py-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Loading analysis...</span>
-                    </div>
-                  ) : analysisError ? (
-                    <div className="flex items-center gap-2 py-2 text-destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>{analysisError}</span>
-                    </div>
-                  ) : analysis ? (
-                    formatMessageContent(analysis)
-                  ) : (
-                    <div className="flex items-center gap-2 py-2 text-muted-foreground">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>No additional analysis available for this response.</span>
-                    </div>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-            
-            {/* Message Feedback */}
-            {!isLoading && onSubmitFeedback && (
-              <div className="mt-2 ml-auto">
-                <MessageFeedback 
-                  messageId={id}
-                  feedbackSubmitted={feedbackSubmitted}
-                  onSubmitFeedback={onSubmitFeedback}
-                />
-              </div>
-            )}
-          </>
+                ) : analysisError ? (
+                  <div className="flex items-center gap-2 py-2 text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{analysisError}</span>
+                  </div>
+                ) : analysis ? (
+                  formatMessageContent(analysis)
+                ) : (
+                  <div className="flex items-center gap-2 py-2 text-muted-foreground">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>No additional analysis available for this response.</span>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
         )}
       </div>
     </div>

@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
@@ -349,46 +350,6 @@ export function useChat() {
     );
   }, [activeConversationId]);
 
-  // Submit feedback for a message
-  const submitMessageFeedback = useCallback(async (messageId: string, feedback: 'helpful' | 'unhelpful', comment?: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}${paths.FEEDBACK_API}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messageId,
-          feedback,
-          comment
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to submit feedback');
-      }
-      
-      // Update message locally
-      updateMessage(messageId, { 
-        feedbackSubmitted: feedback,
-        feedbackComment: comment
-      });
-      
-      toast({
-        title: "Feedback Submitted",
-        description: "Thank you for your feedback",
-        variant: "default",
-      });
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      toast({
-        title: "Error",
-        description: "Failed to submit feedback. Please try again.",
-        variant: "destructive",
-      });
-    }
-  }, [updateMessage]);
-
   // Poll for message processing status
   const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
     try {
@@ -570,7 +531,6 @@ export function useChat() {
     updateConversationTitle,
     deleteConversation,
     fetchConversation,
-    sendMessage,
-    submitMessageFeedback
+    sendMessage
   };
 }
