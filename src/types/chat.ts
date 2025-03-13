@@ -36,6 +36,8 @@ export interface Message {
   processingStage?: string;
   analysis?: string;
   requestId?: string;
+  feedbackSubmitted?: 'helpful' | 'unhelpful';
+  feedbackComment?: string;
 }
 
 export interface Conversation {
