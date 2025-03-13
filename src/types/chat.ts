@@ -44,4 +44,6 @@ export interface Conversation {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
+  isGeneratingTitle?: boolean;
+  titleUpdated?: boolean;
 }

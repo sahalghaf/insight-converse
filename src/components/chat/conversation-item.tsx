@@ -92,7 +92,15 @@ export function ConversationItem({
         </div>
       ) : (
         <>
-          <span className="flex-1 truncate text-sidebar-foreground">{conversation.title}</span>
+          <span 
+            className={cn(
+              "flex-1 truncate text-sidebar-foreground transition-all duration-300",
+              conversation.isGeneratingTitle && "opacity-70 italic",
+              conversation.titleUpdated && "text-primary font-medium animate-pulse-light"
+            )}
+          >
+            {conversation.title}
+          </span>
           <span className="text-xs text-sidebar-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity">
             {formatDate(conversation.updatedAt)}
           </span>

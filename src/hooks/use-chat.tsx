@@ -110,8 +110,28 @@ export function useChat() {
     }
   }, []);
 
-  const updateConversationTitle = useCallback(async (id: string, title: string) => {
+  const updateConversationTitle = useCallback(async (
+    id: string, 
+    title: string, 
+    updateLocalFirst = true // Flag to control update order
+  ) => {
     if (!title.trim()) return;
+    
+    // Update local state first for immediate feedback if specified
+    if (updateLocalFirst) {
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === id 
+            ? { 
+                ...conv, 
+                title, 
+                updatedAt: Date.now(),
+                isGeneratingTitle: false 
+              } 
+            : conv
+        )
+      );
+    }
     
     try {
       setIsLoading(true);
@@ -131,31 +151,41 @@ export function useChat() {
       
       const updatedConversation = await response.json();
       
-      // Update local state
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === id 
-            ? { ...conv, title: updatedConversation.title, updatedAt: updatedConversation.updatedAt } 
-            : conv
-        )
-      );
+      // Update local state if we didn't do it already or sync with server timestamp
+      if (!updateLocalFirst) {
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === id 
+              ? { 
+                  ...conv, 
+                  title: updatedConversation.title, 
+                  updatedAt: updatedConversation.updatedAt,
+                  isGeneratingTitle: false
+                } 
+              : conv
+          )
+        );
+      }
     } catch (error) {
       console.error('Error updating conversation title:', error);
       
-      // Fallback to local update
+      // Only show error if we didn't already update locally
+      if (!updateLocalFirst) {
+        toast({
+          title: "Warning",
+          description: "Failed to update conversation title on server.",
+          variant: "default",
+        });
+      }
+      
+      // Always make sure we're not stuck in generating state
       setConversations(prev => 
         prev.map(conv => 
-          conv.id === id 
-            ? { ...conv, title, updatedAt: Date.now() } 
+          conv.id === id && conv.isGeneratingTitle
+            ? { ...conv, isGeneratingTitle: false } 
             : conv
         )
       );
-      
-      toast({
-        title: "Warning",
-        description: "Updated conversation locally due to server error.",
-        variant: "default",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -225,6 +255,15 @@ export function useChat() {
 
   // Fix/generate a topic based on the conversation content
   const fixConversationTopic = useCallback(async (conversationId: string, message: string) => {
+    // 1. Optimistic update - Show a temporary indication right away
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, title: "Generating title...", isGeneratingTitle: true } 
+          : conv
+      )
+    );
+    
     try {
       const response = await fetch(`${API_BASE_URL}${paths.FIX_TOPIC_API}`, {
         method: 'POST',
@@ -243,15 +282,53 @@ export function useChat() {
       
       const data = await response.json();
       
-      // Update conversation title with the generated one
+      // 2. Smooth transition to the actual title
       if (data.title) {
-        updateConversationTitle(conversationId, data.title);
+        // Update server first
+        await updateConversationTitle(conversationId, data.title, false);
+        
+        // Then update local state with animation flag
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === conversationId 
+              ? { 
+                  ...conv, 
+                  title: data.title, 
+                  isGeneratingTitle: false,
+                  titleUpdated: true // Flag for animation
+                } 
+              : conv
+          )
+        );
+        
+        // Reset animation flag after transition
+        setTimeout(() => {
+          setConversations(prev => 
+            prev.map(conv => 
+              conv.id === conversationId 
+                ? { ...conv, titleUpdated: false } 
+                : conv
+            )
+          );
+        }, 2000);
+        
+        return data.title;
       }
       
-      return data.title;
+      throw new Error('No title returned from API');
     } catch (error) {
       console.error('Error fixing topic:', error);
-      return null;
+      
+      // 3. Fallback to a generic title on error
+      const fallbackTitle = `Chat ${new Date().toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric'
+      })}`;
+      
+      updateConversationTitle(conversationId, fallbackTitle);
+      return fallbackTitle;
     }
   }, [updateConversationTitle]);
 
