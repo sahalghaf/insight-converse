@@ -42,6 +42,11 @@ export function ChatLayout() {
     (message) => message.isLoading
   );
 
+  // Function to handle suggestion clicks
+  const handleSendSuggestion = (suggestion: string) => {
+    sendMessage(suggestion);
+  };
+
   return (
     <div className="flex flex-col h-screen relative">
       {/* Logo Header */}
@@ -129,7 +134,10 @@ export function ChatLayout() {
             )}
             
             <main className="flex-1 overflow-hidden flex flex-col w-full">
-              <MessageList messages={activeConversation.messages} />
+              <MessageList 
+                messages={activeConversation.messages} 
+                onSendSuggestion={handleSendSuggestion}
+              />
               
               <div className="p-4 md:p-6">
                 <InputBox

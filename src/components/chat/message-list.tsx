@@ -2,12 +2,14 @@
 import { useEffect, useRef } from "react";
 import { Message } from "@/components/chat/message";
 import { Message as MessageType } from "@/types/chat";
+import { MessageCircleQuestion } from "lucide-react";
 
 interface MessageListProps {
   messages: MessageType[];
+  onSendSuggestion?: (suggestion: string) => void;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,6 +17,12 @@ export function MessageList({ messages }: MessageListProps) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleSuggestionClick = (suggestion: string) => {
+    if (onSendSuggestion) {
+      onSendSuggestion(suggestion);
+    }
+  };
 
   return (
     <div
@@ -34,14 +42,26 @@ export function MessageList({ messages }: MessageListProps) {
               <div className="flex flex-col gap-2">
                 <p className="text-sm font-medium">Try asking:</p>
                 <div className="flex flex-col gap-2">
-                  <div className="bg-secondary text-secondary-foreground p-3 rounded-lg text-sm hover:bg-secondary/80 transition-colors cursor-pointer">
-                    What was the total revenue for Technology companies in 2023?
+                  <div 
+                    className="bg-secondary text-secondary-foreground p-3 rounded-lg text-sm hover:bg-secondary/80 transition-colors cursor-pointer flex items-center gap-2"
+                    onClick={() => handleSuggestionClick("What was the total revenue for Technology companies in 2023?")}
+                  >
+                    <MessageCircleQuestion className="h-4 w-4 text-primary flex-shrink-0" />
+                    <span>What was the total revenue for Technology companies in 2023?</span>
                   </div>
-                  <div className="bg-secondary text-secondary-foreground p-3 rounded-lg text-sm hover:bg-secondary/80 transition-colors cursor-pointer">
-                    Show me the top 5 companies by revenue in Dubai
+                  <div 
+                    className="bg-secondary text-secondary-foreground p-3 rounded-lg text-sm hover:bg-secondary/80 transition-colors cursor-pointer flex items-center gap-2"
+                    onClick={() => handleSuggestionClick("Show me the top 5 companies by revenue in Dubai")}
+                  >
+                    <MessageCircleQuestion className="h-4 w-4 text-primary flex-shrink-0" />
+                    <span>Show me the top 5 companies by revenue in Dubai</span>
                   </div>
-                  <div className="bg-secondary text-secondary-foreground p-3 rounded-lg text-sm hover:bg-secondary/80 transition-colors cursor-pointer">
-                    Which business sector had the highest profitability in Q2 2024?
+                  <div 
+                    className="bg-secondary text-secondary-foreground p-3 rounded-lg text-sm hover:bg-secondary/80 transition-colors cursor-pointer flex items-center gap-2"
+                    onClick={() => handleSuggestionClick("Which business sector had the highest profitability in Q2 2024?")}
+                  >
+                    <MessageCircleQuestion className="h-4 w-4 text-primary flex-shrink-0" />
+                    <span>Which business sector had the highest profitability in Q2 2024?</span>
                   </div>
                 </div>
               </div>
