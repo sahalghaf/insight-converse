@@ -45,7 +45,13 @@ export function Message({ message }: MessageProps) {
         role === "user" ? "justify-end" : "justify-start"
       )}
     >
-      <div className={cn("flex flex-col gap-3", role === "user" ? "items-end" : "items-start")}>
+      <div 
+        className={cn(
+          "flex flex-col gap-3", 
+          role === "user" ? "items-end" : "items-start",
+          "max-w-full w-full md:max-w-4xl"
+        )}
+      >
         <div
           className={cn(
             "will-change-transform",
@@ -78,9 +84,9 @@ export function Message({ message }: MessageProps) {
         )}
 
         {tables && tables.length > 0 && !isLoading && (
-          <div className="w-full max-w-3xl">
+          <div className="w-full" style={{ maxWidth: '100%' }}>
             {tables.map((table, index) => (
-              <div key={index} className="mt-2">
+              <div key={index} className="mt-2 overflow-auto">
                 <DataTable tableData={table} />
               </div>
             ))}
@@ -88,7 +94,7 @@ export function Message({ message }: MessageProps) {
         )}
 
         {analysis && !isLoading && (
-          <div className="w-full max-w-3xl mt-2">
+          <div className="w-full mt-2">
             <Collapsible
               open={isAnalysisOpen}
               onOpenChange={setIsAnalysisOpen}

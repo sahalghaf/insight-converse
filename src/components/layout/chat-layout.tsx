@@ -82,7 +82,7 @@ export function ChatLayout() {
             onClick={() => setIsSidebarOpen(false)}
           />
           
-          <main className="flex-1 overflow-hidden flex flex-col max-w-5xl mx-auto w-full">
+          <main className="flex-1 overflow-hidden flex flex-col w-full">
             <MessageList messages={activeConversation.messages} />
             
             <div className="p-4 md:p-6">
