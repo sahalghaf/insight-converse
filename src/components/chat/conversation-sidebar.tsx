@@ -43,7 +43,7 @@ export function ConversationSidebar({
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden text-sidebar-foreground hover:bg-sidebar-accent/50"
             onClick={onClose}
           >
             <X className="h-4 w-4" />

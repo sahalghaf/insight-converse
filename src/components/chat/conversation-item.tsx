@@ -51,11 +51,12 @@ export function ConversationItem({
     <div
       className={cn(
         "group flex items-center gap-2 rounded-md p-2 text-sm transition-colors hover:bg-sidebar-accent cursor-pointer",
-        isActive ? "bg-sidebar-accent" : "transparent"
+        isActive ? "bg-sidebar-accent" : "transparent",
+        "text-sidebar-foreground" // Ensure text is always using the sidebar foreground color
       )}
       onClick={!isEditing ? onClick : undefined}
     >
-      <MessageSquare className="h-4 w-4 shrink-0" />
+      <MessageSquare className="h-4 w-4 shrink-0 text-sidebar-foreground" />
       
       {isEditing ? (
         <div className="flex-1 flex items-center">
@@ -91,8 +92,8 @@ export function ConversationItem({
         </div>
       ) : (
         <>
-          <span className="flex-1 truncate">{conversation.title}</span>
-          <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="flex-1 truncate text-sidebar-foreground">{conversation.title}</span>
+          <span className="text-xs text-sidebar-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity">
             {formatDate(conversation.updatedAt)}
           </span>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
