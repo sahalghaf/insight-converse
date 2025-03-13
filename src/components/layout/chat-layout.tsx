@@ -5,7 +5,7 @@ import { ConversationSidebar } from "@/components/chat/conversation-sidebar";
 import { MessageList } from "@/components/chat/message-list";
 import { InputBox } from "@/components/chat/input-box";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
+import { Menu, Zap } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export function ChatLayout() {
@@ -38,6 +38,18 @@ export function ChatLayout() {
 
   return (
     <div className="flex flex-col h-screen relative">
+      {/* Logo and Header */}
+      <header className="h-16 flex items-center px-4 border-b bg-card/60 backdrop-blur-sm sticky top-0 z-10">
+        <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
+          <div className="flex items-center">
+            <div className="flex items-center mr-4">
+              <Zap className="h-6 w-6 text-primary mr-2" />
+              <span className="font-bold text-lg">Enterprise ChatBot</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <div className="flex flex-1 overflow-hidden">
         <ConversationSidebar
           conversations={conversations}
