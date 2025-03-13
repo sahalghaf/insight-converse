@@ -21,53 +21,239 @@ export function useChat() {
   });
   
   const [activeConversationId, setActiveConversationId] = useState<string>(conversations[0].id);
+  const [isLoading, setIsLoading] = useState(false);
 
   const activeConversation = useMemo(() => {
     return conversations.find(conv => conv.id === activeConversationId) || conversations[0];
   }, [conversations, activeConversationId]);
 
-  const createNewConversation = useCallback(() => {
-    const newConversation: Conversation = {
-      id: uuidv4(),
-      title: 'New Conversation',
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    
-    setConversations(prev => [newConversation, ...prev]);
-    setActiveConversationId(newConversation.id);
-    return newConversation;
-  }, []);
-
-  const updateConversationTitle = useCallback((id: string, title: string) => {
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === id 
-          ? { ...conv, title, updatedAt: Date.now() } 
-          : conv
-      )
-    );
-  }, []);
-
-  const deleteConversation = useCallback((id: string) => {
-    setConversations(prev => {
-      const filtered = prev.filter(conv => conv.id !== id);
-      if (id === activeConversationId && filtered.length > 0) {
-        setActiveConversationId(filtered[0].id);
-      } else if (filtered.length === 0) {
-        const newConv = {
-          id: uuidv4(),
-          title: 'New Conversation',
-          messages: [],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        return [newConv];
+  // Fetch a specific conversation with its messages
+  const fetchConversation = useCallback(async (id: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}/${id}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversation');
       }
-      return filtered;
-    });
+      
+      const data = await response.json();
+      
+      // Update the conversation in state
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === id ? { ...data } : conv
+        )
+      );
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch conversation. Please try again.",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const createNewConversation = useCallback(async (title = 'New Conversation') => {
+    try {
+      setIsLoading(true);
+      
+      // Create conversation on server
+      const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create conversation');
+      }
+      
+      const newConversation: Conversation = await response.json();
+      
+      setConversations(prev => [newConversation, ...prev]);
+      setActiveConversationId(newConversation.id);
+      
+      return newConversation;
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      
+      // Fallback to local creation if API fails
+      const fallbackConversation: Conversation = {
+        id: uuidv4(),
+        title,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      
+      setConversations(prev => [fallbackConversation, ...prev]);
+      setActiveConversationId(fallbackConversation.id);
+      
+      toast({
+        title: "Warning",
+        description: "Created conversation locally due to server error.",
+        variant: "default",
+      });
+      
+      return fallbackConversation;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const updateConversationTitle = useCallback(async (id: string, title: string) => {
+    if (!title.trim()) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Update conversation on server
+      const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update conversation title');
+      }
+      
+      const updatedConversation = await response.json();
+      
+      // Update local state
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === id 
+            ? { ...conv, title: updatedConversation.title, updatedAt: updatedConversation.updatedAt } 
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Error updating conversation title:', error);
+      
+      // Fallback to local update
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === id 
+            ? { ...conv, title, updatedAt: Date.now() } 
+            : conv
+        )
+      );
+      
+      toast({
+        title: "Warning",
+        description: "Updated conversation locally due to server error.",
+        variant: "default",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const deleteConversation = useCallback(async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      // Delete conversation on server
+      const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete conversation');
+      }
+      
+      // Update local state
+      setConversations(prev => {
+        const filtered = prev.filter(conv => conv.id !== id);
+        if (id === activeConversationId && filtered.length > 0) {
+          setActiveConversationId(filtered[0].id);
+        } else if (filtered.length === 0) {
+          // Create a new conversation if all were deleted
+          const newConv = {
+            id: uuidv4(),
+            title: 'New Conversation',
+            messages: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          return [newConv];
+        }
+        return filtered;
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      
+      // Fallback to local deletion
+      setConversations(prev => {
+        const filtered = prev.filter(conv => conv.id !== id);
+        if (id === activeConversationId && filtered.length > 0) {
+          setActiveConversationId(filtered[0].id);
+        } else if (filtered.length === 0) {
+          const newConv = {
+            id: uuidv4(),
+            title: 'New Conversation',
+            messages: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          return [newConv];
+        }
+        return filtered;
+      });
+      
+      toast({
+        title: "Warning",
+        description: "Deleted conversation locally due to server error.",
+        variant: "default",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }, [activeConversationId]);
+
+  // Fix/generate a topic based on the conversation content
+  const fixConversationTopic = useCallback(async (conversationId: string, message: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${paths.FIX_TOPIC_API}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId,
+          message,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fix topic');
+      }
+      
+      const data = await response.json();
+      
+      // Update conversation title with the generated one
+      if (data.title) {
+        updateConversationTitle(conversationId, data.title);
+      }
+      
+      return data.title;
+    } catch (error) {
+      console.error('Error fixing topic:', error);
+      return null;
+    }
+  }, [updateConversationTitle]);
 
   // Update a message in the active conversation
   const updateMessage = useCallback((messageId: string, updates: Partial<Message>) => {
@@ -189,19 +375,26 @@ export function useChat() {
     };
     
     // Update conversation with user message and placeholder
-    setConversations(prev => 
-      prev.map(conv => 
+    setConversations(prev => {
+      const updated = prev.map(conv => 
         conv.id === activeConversationId 
           ? { 
               ...conv, 
               messages: [...conv.messages, userMessage, placeholderMessage],
               updatedAt: Date.now(),
-              // Set a title based on the first user message if it's the first message
-              title: conv.messages.length === 0 ? content.slice(0, 30) + (content.length > 30 ? '...' : '') : conv.title
             } 
           : conv
-      )
-    );
+      );
+      
+      // Check if this is the first message and generate a title
+      const activeConv = updated.find(conv => conv.id === activeConversationId);
+      if (activeConv && activeConv.messages.length === 2) {
+        // Only user message and placeholder, meaning this is the first real message
+        fixConversationTopic(activeConversationId, content);
+      }
+      
+      return updated;
+    });
     
     try {
       // Send the message to the chat API
@@ -249,16 +442,18 @@ export function useChat() {
         processingStage: undefined
       });
     }
-  }, [activeConversationId, updateMessage, pollMessageStatus]);
+  }, [activeConversationId, updateMessage, pollMessageStatus, fixConversationTopic]);
 
   return {
     conversations,
     activeConversation,
     activeConversationId,
     setActiveConversationId,
+    isLoading,
     createNewConversation,
     updateConversationTitle,
     deleteConversation,
+    fetchConversation,
     sendMessage
   };
 }

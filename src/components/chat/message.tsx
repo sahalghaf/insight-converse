@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Message as MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -11,6 +10,8 @@ import {
   CollapsibleContent 
 } from "@/components/ui/collapsible";
 import { paths } from "@/config/api-paths";
+
+const API_BASE_URL = 'http://localhost:9800';
 
 interface MessageProps {
   message: MessageType;
@@ -29,16 +30,14 @@ export function Message({ message }: MessageProps) {
     }
   }, []);
 
-  // Fetch analysis when user opens the collapsible if analysis is not already loaded
   const handleOpenAnalysis = useCallback(async (open: boolean) => {
     setIsAnalysisOpen(open);
     
-    // Only fetch analysis if opening and we don't already have it
     if (open && !analysis && !isLoadingAnalysis && !isLoading && role === 'assistant') {
       setIsLoadingAnalysis(true);
       
       try {
-        const response = await fetch(`http://localhost:9800${paths.ANALYSIS_API}/${id}`);
+        const response = await fetch(`${API_BASE_URL}${paths.ANALYSIS_API}/${id}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch analysis');
@@ -56,7 +55,6 @@ export function Message({ message }: MessageProps) {
   }, [analysis, isLoadingAnalysis, isLoading, role, id]);
 
   const formatMessageContent = (content: string) => {
-    // Simple markdown-like formatting
     return content
       .split("\n")
       .map((line, i) => (
