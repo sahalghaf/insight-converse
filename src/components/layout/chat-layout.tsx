@@ -1,10 +1,10 @@
 
-import { ChatSidebar } from "@/components/chat/conversation-sidebar";
+import { ConversationSidebar } from "@/components/chat/conversation-sidebar";
 import { MessageList } from "@/components/chat/message-list";
 import { InputBox } from "@/components/chat/input-box";
 import { useChat } from "@/hooks/use-chat";
-import { useEffect, useRef } from "react";
-import { useMediaQuery } from "@/hooks/use-mobile";
+import { useEffect, useRef, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function ChatLayout() {
   const {
@@ -18,7 +18,8 @@ export function ChatLayout() {
     submitMessageFeedback
   } = useChat();
   
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,15 +29,22 @@ export function ChatLayout() {
     }
   }, [activeConversation.messages]);
 
+  // Close sidebar by default on mobile
+  useEffect(() => {
+    setSidebarOpen(!isMobile);
+  }, [isMobile]);
+
   return (
     <div className="flex h-screen bg-background">
-      <ChatSidebar
+      <ConversationSidebar
         conversations={conversations}
         activeConversationId={activeConversation.id}
-        setActiveConversationId={setActiveConversationId}
-        createNewConversation={createNewConversation}
-        deleteConversation={deleteConversation}
-        updateConversationTitle={updateConversationTitle}
+        onSelectConversation={setActiveConversationId}
+        onNewConversation={createNewConversation}
+        onDeleteConversation={deleteConversation}
+        onRenameConversation={updateConversationTitle}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       
       <div className="flex-1 flex flex-col h-full overflow-hidden">
