@@ -4,10 +4,11 @@
  * These can be modified based on environment
  */
 
-const API_HOST = 'localhost:9800';
-
+// Simplify by using relative paths - backend server is at localhost:9800
 export const paths = {
-  CHAT_API: `${API_HOST}/api/chat`,
-  CONVERSATION_API: `${API_HOST}/api/conversations`,
-  DATA_ANALYSIS_API: `${API_HOST}/api/analysis`,
+  CHAT_API: '/api/chat',
+  CHAT_STATUS_API: '/api/chat/status',
+  CHAT_RESPONSE_API: '/api/chat/response',
+  ANALYSIS_API: '/api/analysis',
+  CONVERSATION_API: '/api/conversations',
 };

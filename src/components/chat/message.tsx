@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Message as MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
@@ -10,21 +10,50 @@ import {
   CollapsibleTrigger, 
   CollapsibleContent 
 } from "@/components/ui/collapsible";
+import { paths } from "@/config/api-paths";
 
 interface MessageProps {
   message: MessageType;
 }
 
 export function Message({ message }: MessageProps) {
-  const { role, content, visuals, tables, isLoading, processingStage, analysis } = message;
+  const { id, role, content, visuals, tables, isLoading, processingStage, analysis: initialAnalysis } = message;
   const messageRef = useRef<HTMLDivElement>(null);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [analysis, setAnalysis] = useState<string | null>(initialAnalysis || null);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
 
   useEffect(() => {
     if (messageRef.current) {
       messageRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, []);
+
+  // Fetch analysis when user opens the collapsible if analysis is not already loaded
+  const handleOpenAnalysis = useCallback(async (open: boolean) => {
+    setIsAnalysisOpen(open);
+    
+    // Only fetch analysis if opening and we don't already have it
+    if (open && !analysis && !isLoadingAnalysis && !isLoading && role === 'assistant') {
+      setIsLoadingAnalysis(true);
+      
+      try {
+        const response = await fetch(`http://localhost:9800${paths.ANALYSIS_API}/${id}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch analysis');
+        }
+        
+        const data = await response.json();
+        setAnalysis(data.analysis);
+      } catch (error) {
+        console.error('Error fetching analysis:', error);
+        setAnalysis('Failed to load analysis. Please try again.');
+      } finally {
+        setIsLoadingAnalysis(false);
+      }
+    }
+  }, [analysis, isLoadingAnalysis, isLoading, role, id]);
 
   const formatMessageContent = (content: string) => {
     // Simple markdown-like formatting
@@ -93,11 +122,11 @@ export function Message({ message }: MessageProps) {
           </div>
         )}
 
-        {analysis && !isLoading && (
+        {!isLoading && role === 'assistant' && (
           <div className="w-full mt-2">
             <Collapsible
               open={isAnalysisOpen}
-              onOpenChange={setIsAnalysisOpen}
+              onOpenChange={handleOpenAnalysis}
               className="border border-border rounded-lg overflow-hidden bg-card/70 backdrop-blur-sm"
             >
               <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium">
@@ -112,7 +141,16 @@ export function Message({ message }: MessageProps) {
                 )}
               </CollapsibleTrigger>
               <CollapsibleContent className="px-4 py-3 text-sm border-t border-border bg-card/30">
-                {formatMessageContent(analysis)}
+                {isLoadingAnalysis ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading analysis...</span>
+                  </div>
+                ) : analysis ? (
+                  formatMessageContent(analysis)
+                ) : (
+                  <p>No additional analysis available for this response.</p>
+                )}
               </CollapsibleContent>
             </Collapsible>
           </div>

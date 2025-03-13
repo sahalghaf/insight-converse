@@ -3,130 +3,10 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { paths } from '@/config/api-paths';
+import { toast } from '@/components/ui/use-toast';
 
-// Simulated API call for demo purposes - in real app, this would be a fetch to the actual API
-const mockApiCall = (message: string, conversationId: string): Promise<any> => {
-  return new Promise((resolve) => {
-    // Request ID to track the chat processing
-    const requestId = uuidv4();
-    
-    // Immediately return initial response with request ID
-    setTimeout(() => {
-      resolve({
-        requestId,
-        status: 'processing',
-        stage: 'Contemplating...',
-      });
-    }, 500);
-    
-    // In a real implementation, you would connect to a streaming API or use polling
-  });
-};
-
-// Mock function to simulate getting processing updates
-const mockGetProcessingUpdates = (requestId: string): Promise<string> => {
-  return new Promise((resolve) => {
-    const stages = [
-      'Analyzing query...',
-      'Processing data...',
-      'Generating insights...',
-      'Preparing visualizations...',
-      'Finalizing response...'
-    ];
-    
-    const randomStage = stages[Math.floor(Math.random() * stages.length)];
-    
-    setTimeout(() => {
-      resolve(randomStage);
-    }, 1000);
-  });
-};
-
-// Mock function for generating sample data (in a real app, this would be an API call)
-const mockResponse = (message: string, requestId: string): Promise<Message> => {
-  return new Promise((resolve) => {
-    // Simulate network delay
-    setTimeout(() => {
-      const assistantMsg: Message = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: getRandomResponse(message),
-        timestamp: Date.now(),
-        requestId,
-      };
-
-      // Add sample chart data for certain queries
-      if (message.toLowerCase().includes('revenue') || message.toLowerCase().includes('trend')) {
-        assistantMsg.visuals = [{
-          type: 'bar',
-          title: 'Revenue by Sector',
-          data: {
-            labels: ['Technology', 'Healthcare', 'Finance', 'Retail', 'Energy'],
-            datasets: [{
-              label: 'Revenue (millions)',
-              data: [250, 180, 310, 150, 220],
-              backgroundColor: [
-                'rgba(59, 130, 246, 0.6)',
-                'rgba(16, 185, 129, 0.6)',
-                'rgba(249, 115, 22, 0.6)',
-                'rgba(217, 70, 239, 0.6)',
-                'rgba(245, 158, 11, 0.6)'
-              ],
-            }]
-          }
-        }];
-      }
-
-      // Add sample table data for certain queries
-      if (message.toLowerCase().includes('companies') || message.toLowerCase().includes('comparison')) {
-        assistantMsg.tables = [{
-          title: 'Top Companies by Revenue',
-          columns: [
-            { id: 'rank', header: 'Rank', accessorKey: 'rank' },
-            { id: 'company', header: 'Company', accessorKey: 'company' },
-            { id: 'sector', header: 'Sector', accessorKey: 'sector' },
-            { id: 'revenue', header: 'Revenue (M)', accessorKey: 'revenue' },
-            { id: 'growth', header: 'YoY Growth', accessorKey: 'growth' },
-          ],
-          data: [
-            { rank: 1, company: 'TechCorp', sector: 'Technology', revenue: 450, growth: '12.3%' },
-            { rank: 2, company: 'FinGroup', sector: 'Finance', revenue: 380, growth: '8.7%' },
-            { rank: 3, company: 'MediHealth', sector: 'Healthcare', revenue: 310, growth: '15.2%' },
-            { rank: 4, company: 'EnerSol', sector: 'Energy', revenue: 290, growth: '5.1%' },
-            { rank: 5, company: 'RetailGiant', sector: 'Retail', revenue: 270, growth: '7.8%' },
-          ]
-        }];
-      }
-
-      // Add sample analysis data
-      assistantMsg.analysis = getRandomAnalysis(message);
-
-      resolve(assistantMsg);
-    }, 4000); // Longer delay to simulate processing time
-  });
-};
-
-// Sample responses
-const getRandomResponse = (query: string): string => {
-  const responses = [
-    "Based on the data analysis, I can provide the following insights about your query.",
-    "I've analyzed the dataset and here's what I found for your question.",
-    "The data shows the following trends related to your query.",
-    "After examining the relevant metrics, here are the key insights.",
-    "I've compiled the following information based on your question."
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
-};
-
-// Sample analysis content
-const getRandomAnalysis = (query: string): string => {
-  const analyses = [
-    "Deeper analysis reveals several insights:\n\n- Revenue growth is primarily driven by new product lines\n- Customer retention has a strong correlation with profitability\n- Market expansion efforts show diminishing returns in mature segments\n- Competitor analysis suggests opportunities in emerging markets\n\nRecommendation: Focus on customer retention strategies while exploring targeted expansion.",
-    "Business intelligence analysis highlights:\n\n- Year-over-year growth exceeds industry average by 4.2%\n- Product mix optimization could increase margins by ~3%\n- Regional performance varies significantly with strongest results in EMEA\n- Operational efficiency metrics show room for improvement\n\nRecommendation: Review operational processes while maintaining current product strategy.",
-    "Strategic insights from the data:\n\n- Current market positioning is strong against direct competitors\n- Price sensitivity analysis shows elasticity in mid-tier products\n- Customer segment analysis reveals untapped potential in SMB sector\n- Cost structure analysis identifies optimization opportunities\n\nRecommendation: Consider targeted price adjustments in mid-tier offerings while pursuing SMB expansion.",
-  ];
-  return analyses[Math.floor(Math.random() * analyses.length)];
-};
+// Base URL for API calls
+const API_BASE_URL = 'http://localhost:9800';
 
 export function useChat() {
   const [conversations, setConversations] = useState<Conversation[]>(() => {
@@ -207,20 +87,85 @@ export function useChat() {
     );
   }, [activeConversationId]);
 
-  // Function to simulate processing stages updates
-  const simulateProcessingStages = useCallback(async (placeholderId: string, requestId: string) => {
-    // In a real implementation, this would be a streaming connection or polling
-    for (let i = 0; i < 4; i++) {
-      // Wait before updating to next stage
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  // Poll for message processing status
+  const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
+    try {
+      const pollInterval = setInterval(async () => {
+        const response = await fetch(`${API_BASE_URL}${paths.CHAT_STATUS_API}/${requestId}`);
+        
+        if (!response.ok) {
+          clearInterval(pollInterval);
+          throw new Error('Failed to poll message status');
+        }
+        
+        const data = await response.json();
+        
+        // Update processing stage
+        if (data.status === 'processing') {
+          updateMessage(placeholderId, { processingStage: data.stage });
+        } else if (data.status === 'complete') {
+          clearInterval(pollInterval);
+          
+          // Fetch the complete response
+          const responseData = await fetchResponseData(requestId);
+          
+          // Replace placeholder with actual response
+          updateMessage(placeholderId, { 
+            ...responseData,
+            isLoading: false, 
+            processingStage: undefined
+          });
+        }
+      }, 1500); // Poll every 1.5 seconds
       
-      // Get next processing stage (in real app, this would be from API)
-      const nextStage = await mockGetProcessingUpdates(requestId);
+      // Clean up interval after 2 minutes (timeout)
+      setTimeout(() => {
+        clearInterval(pollInterval);
+      }, 120000); // 2 minutes
       
-      // Update the placeholder message with new stage
-      updateMessage(placeholderId, { processingStage: nextStage });
+      return () => clearInterval(pollInterval);
+    } catch (error) {
+      console.error('Error polling message status:', error);
+      updateMessage(placeholderId, { 
+        content: 'Sorry, there was an error processing your request.', 
+        isLoading: false,
+        processingStage: undefined
+      });
     }
   }, [updateMessage]);
+
+  // Fetch complete response data
+  const fetchResponseData = useCallback(async (requestId: string): Promise<Message> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${paths.CHAT_RESPONSE_API}/${requestId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch response data');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching response data:', error);
+      throw error;
+    }
+  }, []);
+
+  // Fetch analysis data
+  const fetchAnalysisData = useCallback(async (messageId: string): Promise<string | null> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${paths.ANALYSIS_API}/${messageId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch analysis data');
+      }
+      
+      const data = await response.json();
+      return data.analysis;
+    } catch (error) {
+      console.error('Error fetching analysis data:', error);
+      return null;
+    }
+  }, []);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -259,60 +204,52 @@ export function useChat() {
     );
     
     try {
-      // Make initial API call (in a real app this would hit paths.CHAT_API)
-      const initialResponse = await mockApiCall(content, activeConversationId);
-      const { requestId } = initialResponse;
-      
-      // Update placeholder with request ID for tracking
-      updateMessage(placeholderMessage.id, { 
-        requestId,
-        processingStage: initialResponse.stage
+      // Send the message to the chat API
+      const response = await fetch(`${API_BASE_URL}${paths.CHAT_API}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          conversationId: activeConversationId,
+        }),
       });
       
-      // Start simulating processing stages (in real app, this would be streaming or polling)
-      simulateProcessingStages(placeholderMessage.id, requestId);
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
       
-      // Get the full response once processing is complete
-      const assistantMessage = await mockResponse(content, requestId);
+      const data = await response.json();
+      const { requestId } = data;
       
-      // Replace the placeholder with the actual response
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === activeConversationId 
-            ? { 
-                ...conv, 
-                messages: conv.messages.map(msg => 
-                  msg.id === placeholderMessage.id 
-                    ? { ...assistantMessage, isLoading: false, processingStage: undefined }
-                    : msg
-                ),
-              } 
-            : conv
-        )
-      );
+      // Update placeholder with request ID
+      updateMessage(placeholderMessage.id, { 
+        requestId,
+        processingStage: data.stage
+      });
+      
+      // Start polling for status updates
+      pollMessageStatus(requestId, placeholderMessage.id);
+      
     } catch (error) {
-      // Handle error by replacing placeholder with error message
-      setConversations(prev => 
-        prev.map(conv => 
-          conv.id === activeConversationId 
-            ? { 
-                ...conv, 
-                messages: conv.messages.map(msg => 
-                  msg.id === placeholderMessage.id 
-                    ? { 
-                        ...msg, 
-                        content: 'Sorry, there was an error processing your request.', 
-                        isLoading: false,
-                        processingStage: undefined
-                      } 
-                    : msg
-                ),
-              } 
-            : conv
-        )
-      );
+      console.error('Error sending message:', error);
+      
+      // Show error toast
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+      
+      // Update placeholder with error message
+      updateMessage(placeholderMessage.id, { 
+        content: 'Sorry, there was an error sending your message. Please try again.', 
+        isLoading: false,
+        processingStage: undefined
+      });
     }
-  }, [activeConversationId, updateMessage, simulateProcessingStages]);
+  }, [activeConversationId, updateMessage, pollMessageStatus]);
 
   return {
     conversations,
