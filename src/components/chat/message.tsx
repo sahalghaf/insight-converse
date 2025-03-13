@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Message as MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -92,6 +91,10 @@ export function Message({ message, onSubmitFeedback }: MessageProps) {
   }, [analysis, isLoadingAnalysis, isLoading, role, id, analysisError]);
 
   const formatMessageContent = (content: string) => {
+    if (!content || typeof content !== 'string') {
+      return null;
+    }
+    
     return content
       .split("\n")
       .map((line, i) => (

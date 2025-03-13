@@ -5,6 +5,8 @@ import { InputBox } from "@/components/chat/input-box";
 import { useChat } from "@/hooks/use-chat";
 import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import { Menu } from "lucide-react";
 
 export function ChatLayout() {
   const {
@@ -27,18 +29,22 @@ export function ChatLayout() {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [activeConversation.messages]);
+  }, [activeConversation?.messages]);
 
   // Close sidebar by default on mobile
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
 
+  const toggleSidebar = () => {
+    setSidebarOpen(prev => !prev);
+  };
+
   return (
     <div className="flex h-screen bg-background">
       <ConversationSidebar
         conversations={conversations}
-        activeConversationId={activeConversation.id}
+        activeConversationId={activeConversation?.id}
         onSelectConversation={setActiveConversationId}
         onNewConversation={createNewConversation}
         onDeleteConversation={deleteConversation}
@@ -48,12 +54,28 @@ export function ChatLayout() {
       />
       
       <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {isMobile && (
+          <div className="p-2 border-b">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleSidebar}
+              className="md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle Menu</span>
+            </Button>
+          </div>
+        )}
+        
         <main className="flex-1 overflow-y-auto px-4 md:px-8">
           <div className="max-w-3xl mx-auto">
-            <MessageList 
-              messages={activeConversation.messages} 
-              onSubmitFeedback={submitMessageFeedback}
-            />
+            {activeConversation?.messages && (
+              <MessageList 
+                messages={activeConversation.messages} 
+                onSubmitFeedback={submitMessageFeedback}
+              />
+            )}
             <div ref={messagesEndRef} />
           </div>
         </main>
