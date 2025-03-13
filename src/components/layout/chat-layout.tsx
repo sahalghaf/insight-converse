@@ -12,6 +12,7 @@ import {
   ResizablePanel, 
   ResizableHandle 
 } from "@/components/ui/resizable";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export function ChatLayout() {
   const {
@@ -48,6 +49,11 @@ export function ChatLayout() {
         <div className="flex items-center space-x-2 mx-auto md:mx-0">
           <Zap className="h-8 w-8 text-primary" />
           <span className="text-xl font-semibold">Enterprise ChatBot</span>
+        </div>
+        
+        {/* Add the theme toggle to the header */}
+        <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+          <ThemeToggle />
         </div>
       </header>
 
