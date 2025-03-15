@@ -18,6 +18,18 @@ export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
   const [randomQuestions] = useState(() => getRandomQuestions(3));
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Reset isSending when messages array changes (new conversation)
+  useEffect(() => {
+    setIsSending(false);
+    
+    // Clear any existing debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, [messages.length === 0]);
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
