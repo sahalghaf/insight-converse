@@ -16,6 +16,7 @@ export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
   const [isSending, setIsSending] = useState(false);
   // Get 3 random questions when the component mounts
   const [randomQuestions] = useState(() => getRandomQuestions(3));
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -24,10 +25,20 @@ export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
   }, [messages]);
 
   const handleSuggestionClick = (suggestion: string) => {
+    // Don't proceed if already sending or no handler provided
     if (!onSendSuggestion || isSending) return;
     
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    
+    // Set sending state immediately
+    setIsSending(true);
+
     try {
-      setIsSending(true);
+      // Process the suggestion
       onSendSuggestion(suggestion);
     } catch (error) {
       console.error("Error sending suggestion:", error);
@@ -37,12 +48,22 @@ export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
         variant: "destructive",
       });
     } finally {
-      // Prevent multiple rapid clicks
-      setTimeout(() => {
+      // Ensure we reset the sending state after a delay
+      debounceTimerRef.current = setTimeout(() => {
         setIsSending(false);
+        debounceTimerRef.current = null;
       }, 500);
     }
   };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div
