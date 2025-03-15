@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { useChat } from "@/hooks/use-chat";
 import { ConversationSidebar } from "@/components/chat/conversation-sidebar";
@@ -26,6 +25,7 @@ export function ChatLayout() {
     updateConversationTitle,
     deleteConversation,
     sendMessage,
+    isConversationEmpty,
   } = useChat();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -102,6 +102,16 @@ export function ChatLayout() {
       return;
     }
     
+    // Check if the active conversation is empty before creating a new one
+    if (isConversationEmpty(activeConversationId)) {
+      toast({
+        title: "Empty Conversation",
+        description: "Please add a message to your current conversation before creating a new one.",
+        variant: "default",
+      });
+      return;
+    }
+    
     try {
       createNewConversation().catch(err => {
         console.error("Error creating new conversation:", err);
@@ -119,7 +129,7 @@ export function ChatLayout() {
         variant: "destructive",
       });
     }
-  }, [createNewConversation, isOnline]);
+  }, [createNewConversation, isOnline, isConversationEmpty, activeConversationId]);
 
   return (
     <div className="flex flex-col h-screen relative">

@@ -26,6 +26,19 @@ export function useChat() {
     return conversations.find(conv => conv.id === activeConversationId) || conversations[0];
   }, [conversations, activeConversationId]);
 
+  // Add a function to check if a conversation is empty (has no user messages)
+  const isConversationEmpty = useCallback((conversationId: string) => {
+    const conversation = conversations.find(conv => conv.id === conversationId);
+    if (!conversation) return true;
+    
+    // Check for user messages (ignore placeholder/loading messages)
+    const hasUserMessages = conversation.messages.some(
+      msg => msg.role === 'user' && msg.content && msg.content.trim() !== ''
+    );
+    
+    return !hasUserMessages;
+  }, [conversations]);
+
   // Fetch a specific conversation with its messages
   const fetchConversation = useCallback(async (id: string) => {
     try {
@@ -554,6 +567,7 @@ export function useChat() {
     updateConversationTitle,
     deleteConversation,
     fetchConversation,
-    sendMessage
+    sendMessage,
+    isConversationEmpty
   };
 }
