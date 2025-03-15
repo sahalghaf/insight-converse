@@ -437,22 +437,6 @@ export function useChat() {
     }
   }, []);
 
-  const fetchAnalysisData = useCallback(async (messageId: string): Promise<string | null> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}${paths.ANALYSIS_API}/${messageId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch analysis data');
-      }
-      
-      const data = await response.json();
-      return data.analysis;
-    } catch (error) {
-      console.error('Error fetching analysis data:', error);
-      return null;
-    }
-  }, []);
-
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
     
