@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,29 +63,62 @@ export function useChat() {
     try {
       setIsLoading(true);
       
-      // Create conversation on server
-      const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title }),
-      });
+      // Create a new conversation locally first to ensure we have a valid state
+      const newId = uuidv4();
+      const newConversation: Conversation = {
+        id: newId,
+        title,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
       
-      if (!response.ok) {
-        throw new Error('Failed to create conversation');
-      }
-      
-      const newConversation: Conversation = await response.json();
-      
+      // Update state with the new conversation
       setConversations(prev => [newConversation, ...prev]);
-      setActiveConversationId(newConversation.id);
+      setActiveConversationId(newId);
       
-      return newConversation;
+      // Then try to create on server
+      try {
+        const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            id: newId,
+            title 
+          }),
+        });
+        
+        if (!response.ok) {
+          console.warn('Could not create conversation on server, using local version');
+          return newConversation;
+        }
+        
+        const serverConversation = await response.json();
+        
+        // Update with server data if available
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === newId ? { ...serverConversation } : conv
+          )
+        );
+        
+        return serverConversation;
+      } catch (error) {
+        console.warn('Could not create conversation on server, using local version', error);
+        return newConversation;
+      }
     } catch (error) {
       console.error('Error creating conversation:', error);
       
-      // Fallback to local creation if API fails
+      toast({
+        title: "Warning",
+        description: "Created conversation locally due to an error.",
+        variant: "default",
+      });
+      
+      // Ensure we always have a local fallback
       const fallbackConversation: Conversation = {
         id: uuidv4(),
         title,
@@ -97,12 +129,6 @@ export function useChat() {
       
       setConversations(prev => [fallbackConversation, ...prev]);
       setActiveConversationId(fallbackConversation.id);
-      
-      toast({
-        title: "Warning",
-        description: "Created conversation locally due to server error.",
-        variant: "default",
-      });
       
       return fallbackConversation;
     } finally {
@@ -265,61 +291,49 @@ export function useChat() {
     );
     
     try {
-      const response = await fetch(`${API_BASE_URL}${paths.FIX_TOPIC_API}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversationId,
-          message,
-        }),
-      });
+      // Safely handle API request
+      let newTitle = '';
       
-      if (!response.ok) {
-        throw new Error('Failed to fix topic');
+      try {
+        const response = await fetch(`${API_BASE_URL}${paths.FIX_TOPIC_API}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            conversationId,
+            message,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fix topic');
+        }
+        
+        const data = await response.json();
+        if (data && data.title) {
+          newTitle = data.title;
+        } else {
+          throw new Error('No title returned from API');
+        }
+      } catch (apiError) {
+        console.error('Error fixing topic:', apiError);
+        // Generate a fallback title
+        newTitle = `Chat ${new Date().toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric'
+        })}`;
       }
       
-      const data = await response.json();
-      
-      // 2. Smooth transition to the actual title
-      if (data.title) {
-        // Update server first
-        await updateConversationTitle(conversationId, data.title, false);
-        
-        // Then update local state with animation flag
-        setConversations(prev => 
-          prev.map(conv => 
-            conv.id === conversationId 
-              ? { 
-                  ...conv, 
-                  title: data.title, 
-                  isGeneratingTitle: false,
-                  titleUpdated: true // Flag for animation
-                } 
-              : conv
-          )
-        );
-        
-        // Reset animation flag after transition
-        setTimeout(() => {
-          setConversations(prev => 
-            prev.map(conv => 
-              conv.id === conversationId 
-                ? { ...conv, titleUpdated: false } 
-                : conv
-            )
-          );
-        }, 2000);
-        
-        return data.title;
-      }
-      
-      throw new Error('No title returned from API');
+      // Update conversation title with the new title
+      await updateConversationTitle(conversationId, newTitle);
+      return newTitle;
     } catch (error) {
-      console.error('Error fixing topic:', error);
+      console.error('Error in fixConversationTopic:', error);
       
-      // 3. Fallback to a generic title on error
+      // Final fallback to ensure we always update the title
       const fallbackTitle = `Chat ${new Date().toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
@@ -330,9 +344,8 @@ export function useChat() {
       updateConversationTitle(conversationId, fallbackTitle);
       return fallbackTitle;
     }
-  }, [updateConversationTitle]);
+  }, []);
 
-  // Update a message in the active conversation
   const updateMessage = useCallback((messageId: string, updates: Partial<Message>) => {
     setConversations(prev => 
       prev.map(conv => 
@@ -350,7 +363,6 @@ export function useChat() {
     );
   }, [activeConversationId]);
 
-  // Poll for message processing status
   const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
     try {
       const pollInterval = setInterval(async () => {
@@ -397,7 +409,6 @@ export function useChat() {
     }
   }, [updateMessage]);
 
-  // Fetch complete response data
   const fetchResponseData = useCallback(async (requestId: string): Promise<Message> => {
     try {
       const response = await fetch(`${API_BASE_URL}${paths.CHAT_RESPONSE_API}/${requestId}`);
@@ -413,7 +424,6 @@ export function useChat() {
     }
   }, []);
 
-  // Fetch analysis data
   const fetchAnalysisData = useCallback(async (messageId: string): Promise<string | null> => {
     try {
       const response = await fetch(`${API_BASE_URL}${paths.ANALYSIS_API}/${messageId}`);
@@ -433,90 +443,103 @@ export function useChat() {
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
     
-    // Create user message
-    const userMessage: Message = {
-      id: uuidv4(),
-      role: 'user',
-      content,
-      timestamp: Date.now(),
-    };
-    
-    // Create placeholder for assistant message
-    const placeholderMessage: Message = {
-      id: uuidv4(),
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-      isLoading: true,
-      processingStage: 'Contemplating...',
-    };
-    
-    // Update conversation with user message and placeholder
-    setConversations(prev => {
-      const updated = prev.map(conv => 
-        conv.id === activeConversationId 
-          ? { 
-              ...conv, 
-              messages: [...conv.messages, userMessage, placeholderMessage],
-              updatedAt: Date.now(),
-            } 
-          : conv
-      );
-      
-      // Check if this is the first message and generate a title
-      const activeConv = updated.find(conv => conv.id === activeConversationId);
-      if (activeConv && activeConv.messages.length === 2) {
-        // Only user message and placeholder, meaning this is the first real message
-        fixConversationTopic(activeConversationId, content);
-      }
-      
-      return updated;
-    });
-    
     try {
+      // Create user message
+      const userMessage: Message = {
+        id: uuidv4(),
+        role: 'user',
+        content,
+        timestamp: Date.now(),
+      };
+      
+      // Create placeholder for assistant message
+      const placeholderMessage: Message = {
+        id: uuidv4(),
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        isLoading: true,
+        processingStage: 'Contemplating...',
+      };
+      
+      // Update conversation with user message and placeholder
+      setConversations(prev => {
+        const updated = prev.map(conv => 
+          conv.id === activeConversationId 
+            ? { 
+                ...conv, 
+                messages: [...conv.messages, userMessage, placeholderMessage],
+                updatedAt: Date.now(),
+              } 
+            : conv
+        );
+        
+        // Check if this is the first message and generate a title
+        const activeConv = updated.find(conv => conv.id === activeConversationId);
+        if (activeConv && activeConv.messages.length === 2) {
+          // Only user message and placeholder, meaning this is the first real message
+          fixConversationTopic(activeConversationId, content).catch(console.error);
+        }
+        
+        return updated;
+      });
+      
       // Send the message to the chat API
-      const response = await fetch(`${API_BASE_URL}${paths.CHAT_API}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content,
-          conversationId: activeConversationId,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+      try {
+        const response = await fetch(`${API_BASE_URL}${paths.CHAT_API}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content,
+            conversationId: activeConversationId,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
+        
+        const data = await response.json();
+        const { requestId } = data;
+        
+        if (!requestId) {
+          throw new Error('No request ID returned');
+        }
+        
+        // Update placeholder with request ID
+        updateMessage(placeholderMessage.id, { 
+          requestId,
+          processingStage: data.stage || 'Processing...'
+        });
+        
+        // Start polling for status updates
+        pollMessageStatus(requestId, placeholderMessage.id);
+      } catch (apiError) {
+        console.error('Error sending message to API:', apiError);
+        
+        // Show error toast
+        toast({
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+          variant: "destructive",
+        });
+        
+        // Update placeholder with error message
+        updateMessage(placeholderMessage.id, { 
+          content: 'Sorry, there was an error sending your message. Please try again.', 
+          isLoading: false,
+          processingStage: undefined
+        });
       }
-      
-      const data = await response.json();
-      const { requestId } = data;
-      
-      // Update placeholder with request ID
-      updateMessage(placeholderMessage.id, { 
-        requestId,
-        processingStage: data.stage
-      });
-      
-      // Start polling for status updates
-      pollMessageStatus(requestId, placeholderMessage.id);
-      
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error in sendMessage:', error);
       
-      // Show error toast
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
-      });
-      
-      // Update placeholder with error message
-      updateMessage(placeholderMessage.id, { 
-        content: 'Sorry, there was an error sending your message. Please try again.', 
-        isLoading: false,
-        processingStage: undefined
       });
     }
   }, [activeConversationId, updateMessage, pollMessageStatus, fixConversationTopic]);

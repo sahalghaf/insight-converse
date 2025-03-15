@@ -38,13 +38,23 @@ export function ChatLayout() {
     }
   }, [isMobile]);
 
-  const isWaitingForResponse = activeConversation.messages.some(
-    (message) => message.isLoading
-  );
+  // Safely check if activeConversation and messages exist
+  const isWaitingForResponse = activeConversation?.messages?.some(
+    (message) => message?.isLoading
+  ) || false;
 
   // Function to handle suggestion clicks
   const handleSendSuggestion = (suggestion: string) => {
-    sendMessage(suggestion);
+    if (suggestion) {
+      sendMessage(suggestion);
+    }
+  };
+
+  // Function to handle new conversation safely
+  const handleNewConversation = () => {
+    createNewConversation().catch(err => {
+      console.error("Error creating new conversation:", err);
+    });
   };
 
   return (
@@ -75,10 +85,10 @@ export function ChatLayout() {
               className="relative"
             >
               <ConversationSidebar
-                conversations={conversations}
+                conversations={conversations || []}
                 activeConversationId={activeConversationId}
                 onSelectConversation={setActiveConversationId}
-                onNewConversation={createNewConversation}
+                onNewConversation={handleNewConversation}
                 onDeleteConversation={deleteConversation}
                 onRenameConversation={updateConversationTitle}
                 isOpen={isSidebarOpen}
@@ -102,7 +112,7 @@ export function ChatLayout() {
                 <span className="sr-only">Toggle sidebar</span>
               </Button>
               <h1 className="font-semibold truncate">
-                {activeConversation.title || "New Conversation"}
+                {activeConversation?.title || "New Conversation"}
               </h1>
             </div>
             
@@ -121,10 +131,10 @@ export function ChatLayout() {
             {isMobile && isSidebarOpen && (
               <div className="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar">
                 <ConversationSidebar
-                  conversations={conversations}
+                  conversations={conversations || []}
                   activeConversationId={activeConversationId}
                   onSelectConversation={setActiveConversationId}
-                  onNewConversation={createNewConversation}
+                  onNewConversation={handleNewConversation}
                   onDeleteConversation={deleteConversation}
                   onRenameConversation={updateConversationTitle}
                   isOpen={isSidebarOpen}
@@ -135,7 +145,7 @@ export function ChatLayout() {
             
             <main className="flex-1 overflow-hidden flex flex-col w-full">
               <MessageList 
-                messages={activeConversation.messages} 
+                messages={activeConversation?.messages || []} 
                 onSendSuggestion={handleSendSuggestion}
               />
               
