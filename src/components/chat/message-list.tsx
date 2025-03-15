@@ -1,8 +1,9 @@
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Message } from "@/components/chat/message";
 import { Message as MessageType } from "@/types/chat";
 import { MessageCircleQuestion } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 interface MessageListProps {
   messages: MessageType[];
@@ -11,6 +12,7 @@ interface MessageListProps {
 
 export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -19,8 +21,23 @@ export function MessageList({ messages, onSendSuggestion }: MessageListProps) {
   }, [messages]);
 
   const handleSuggestionClick = (suggestion: string) => {
-    if (onSendSuggestion) {
+    if (!onSendSuggestion || isSending) return;
+    
+    try {
+      setIsSending(true);
       onSendSuggestion(suggestion);
+    } catch (error) {
+      console.error("Error sending suggestion:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send suggestion. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      // Prevent multiple rapid clicks
+      setTimeout(() => {
+        setIsSending(false);
+      }, 500);
     }
   };
 

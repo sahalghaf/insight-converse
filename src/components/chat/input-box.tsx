@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 interface InputBoxProps {
   onSend: (message: string) => void;
@@ -11,7 +12,9 @@ interface InputBoxProps {
 
 export function InputBox({ onSend, isWaitingForResponse = false }: InputBoxProps) {
   const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Adjust textarea height on input change
@@ -34,13 +37,41 @@ export function InputBox({ onSend, isWaitingForResponse = false }: InputBoxProps
   };
 
   const handleSend = () => {
-    if (input.trim() && !isWaitingForResponse) {
-      onSend(input);
-      setInput("");
+    if (input.trim() && !isWaitingForResponse && !isSending) {
+      // Prevent multiple rapid clicks
+      setIsSending(true);
       
-      // Reset textarea height
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
+      try {
+        const message = input.trim();
+        setInput("");
+        
+        // Reset textarea height
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
+        
+        // Clear any existing timeout
+        if (sendTimeoutRef.current) {
+          clearTimeout(sendTimeoutRef.current);
+        }
+        
+        // Debounce sending messages
+        sendTimeoutRef.current = setTimeout(() => {
+          onSend(message);
+          sendTimeoutRef.current = null;
+        }, 100);
+      } catch (error) {
+        console.error("Error sending message:", error);
+        toast({
+          title: "Error",
+          description: "Failed to send message. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        // Allow sending again after a short delay
+        setTimeout(() => {
+          setIsSending(false);
+        }, 500);
       }
     }
   };
@@ -56,16 +87,16 @@ export function InputBox({ onSend, isWaitingForResponse = false }: InputBoxProps
           placeholder="Ask a question about your data..."
           className="w-full px-4 py-3 pr-12 resize-none max-h-[200px] bg-transparent focus:outline-none text-foreground placeholder:text-muted-foreground"
           rows={1}
-          disabled={isWaitingForResponse}
+          disabled={isWaitingForResponse || isSending}
         />
         <Button
           onClick={handleSend}
           size="icon"
           className={cn(
             "absolute right-2 bottom-2 transition-opacity",
-            (!input.trim() || isWaitingForResponse) ? "opacity-50 cursor-not-allowed" : "opacity-100"
+            (!input.trim() || isWaitingForResponse || isSending) ? "opacity-50 cursor-not-allowed" : "opacity-100"
           )}
-          disabled={!input.trim() || isWaitingForResponse}
+          disabled={!input.trim() || isWaitingForResponse || isSending}
         >
           <Send className="h-4 w-4" />
           <span className="sr-only">Send</span>

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useChat } from "@/hooks/use-chat";
 import { ConversationSidebar } from "@/components/chat/conversation-sidebar";
 import { MessageList } from "@/components/chat/message-list";
@@ -13,6 +13,8 @@ import {
   ResizableHandle 
 } from "@/components/ui/resizable";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { useConnectionStatus } from "@/hooks/use-connection-status";
+import { toast } from "@/components/ui/use-toast";
 
 export function ChatLayout() {
   const {
@@ -27,7 +29,9 @@ export function ChatLayout() {
   } = useChat();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSending, setIsSending] = useState(false);
   const isMobile = useIsMobile();
+  const { isOnline } = useConnectionStatus();
 
   // Automatically close sidebar on mobile
   useEffect(() => {
@@ -43,19 +47,79 @@ export function ChatLayout() {
     (message) => message?.isLoading
   ) || false;
 
-  // Function to handle suggestion clicks
-  const handleSendSuggestion = (suggestion: string) => {
-    if (suggestion) {
+  // Function to handle suggestion clicks with error handling
+  const handleSendSuggestion = useCallback((suggestion: string) => {
+    if (!suggestion || isSending || !isOnline) return;
+    
+    try {
+      setIsSending(true);
       sendMessage(suggestion);
+    } catch (err) {
+      console.error("Error sending suggestion:", err);
+      toast({
+        title: "Error",
+        description: "Failed to send suggestion. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      // Prevent multiple rapid clicks
+      setTimeout(() => {
+        setIsSending(false);
+      }, 500);
     }
-  };
+  }, [sendMessage, isSending, isOnline]);
+
+  // Function to handle message sending with error handling
+  const handleSendMessage = useCallback((message: string) => {
+    if (!message || isSending || !isOnline) return;
+    
+    try {
+      setIsSending(true);
+      sendMessage(message);
+    } catch (err) {
+      console.error("Error sending message:", err);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      // Prevent multiple rapid clicks
+      setTimeout(() => {
+        setIsSending(false);
+      }, 500);
+    }
+  }, [sendMessage, isSending, isOnline]);
 
   // Function to handle new conversation safely
-  const handleNewConversation = () => {
-    createNewConversation().catch(err => {
-      console.error("Error creating new conversation:", err);
-    });
-  };
+  const handleNewConversation = useCallback(() => {
+    if (!isOnline) {
+      toast({
+        title: "Offline",
+        description: "Cannot create a new conversation while offline.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      createNewConversation().catch(err => {
+        console.error("Error creating new conversation:", err);
+        toast({
+          title: "Error",
+          description: "Failed to create a new conversation. Please try again.",
+          variant: "destructive",
+        });
+      });
+    } catch (err) {
+      console.error("Error initiating new conversation:", err);
+      toast({
+        title: "Error",
+        description: "Failed to create a new conversation. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [createNewConversation, isOnline]);
 
   return (
     <div className="flex flex-col h-screen relative">
@@ -114,6 +178,14 @@ export function ChatLayout() {
               <h1 className="font-semibold truncate">
                 {activeConversation?.title || "New Conversation"}
               </h1>
+              
+              {!isOnline && (
+                <div className="ml-auto mr-4">
+                  <span className="text-sm font-medium text-destructive-foreground bg-destructive px-2 py-0.5 rounded-full">
+                    Offline
+                  </span>
+                </div>
+              )}
             </div>
             
             {/* Mobile sidebar overlay */}
@@ -151,7 +223,7 @@ export function ChatLayout() {
               
               <div className="p-4 md:p-6">
                 <InputBox
-                  onSend={sendMessage}
+                  onSend={handleSendMessage}
                   isWaitingForResponse={isWaitingForResponse}
                 />
               </div>
