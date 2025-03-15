@@ -9,7 +9,6 @@ export const paths = {
   CHAT_API: '/api/chat',
   CHAT_STATUS_API: '/api/chat/status',
   CHAT_RESPONSE_API: '/api/chat/response',
-  ANALYSIS_API: '/api/analysis',
   CONVERSATION_API: '/api/conversations',
   FIX_TOPIC_API: '/api/conversations/fixTopic',
   FEEDBACK_API: '/api/feedback',

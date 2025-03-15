@@ -34,7 +34,6 @@ export interface Message {
   tables?: TableData[];
   isLoading?: boolean;
   processingStage?: string;
-  analysis?: string;
   requestId?: string;
 }
 
