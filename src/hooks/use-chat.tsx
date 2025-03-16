@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
@@ -403,8 +404,11 @@ export function useChat() {
 
     try {
       // Create a new WebSocket connection for this specific request
-      const wsUrl = `${paths.WS_CHAT_REQUEST(requestId)}?conversation_id=${conversationId}`;
-      const ws = new WebSocket(wsUrl);
+      // UPDATED: Using URL object instead of template string
+      const wsUrl = new URL(paths.WS_CHAT_REQUEST(requestId));
+      wsUrl.searchParams.append('conversation_id', conversationId);
+      const ws = new WebSocket(wsUrl.toString());
+      
       wsRef.current = ws;
       activeRequestIdRef.current = requestId;
 
@@ -631,7 +635,11 @@ export function useChat() {
       // Try to use WebSockets first with fallback to HTTP API
       try {
         // Method 1: Try the WebSocket-first approach
-        const wsConnection = new WebSocket(`${paths.WS_CHAT}?conversation_id=${activeConversationId}`);
+        // UPDATED: Using URL object instead of template string
+        const wsUrl = new URL(paths.WS_CHAT);
+        wsUrl.searchParams.append('conversation_id', activeConversationId);
+        const wsConnection = new WebSocket(wsUrl.toString());
+
         let requestId: string | null = null;
         let trackingSetUp = false;
         
