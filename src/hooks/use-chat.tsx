@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
@@ -357,7 +358,7 @@ export function useChat() {
       updateConversationTitle(conversationId, fallbackTitle);
       return fallbackTitle;
     }
-  }, []);
+  }, [updateConversationTitle]);
 
   const updateMessage = useCallback((messageId: string, updates: Partial<Message>) => {
     setConversations(prev => 
