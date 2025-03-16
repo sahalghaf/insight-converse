@@ -363,6 +363,63 @@ export function useChat() {
     );
   }, [activeConversationId]);
 
+  const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
+    try {
+      const pollInterval = setInterval(async () => {
+        const response = await fetch(`${API_BASE_URL}${paths.CHAT_STATUS_API}/${requestId}`);
+        
+        if (!response.ok) {
+          clearInterval(pollInterval);
+          throw new Error('Failed to poll message status');
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'processing') {
+          updateMessage(placeholderId, { processingStage: data.stage });
+        } else if (data.status === 'complete') {
+          clearInterval(pollInterval);
+          
+          const responseData = await fetchResponseData(requestId);
+          
+          updateMessage(placeholderId, { 
+            ...responseData,
+            isLoading: false, 
+            processingStage: undefined
+          });
+        }
+      }, 1500);
+      
+      setTimeout(() => {
+        clearInterval(pollInterval);
+      }, 120000);
+      
+      return () => clearInterval(pollInterval);
+    } catch (error) {
+      console.error('Error polling message status:', error);
+      updateMessage(placeholderId, { 
+        content: 'Sorry, there was an error processing your request.', 
+        isLoading: false,
+        processingStage: undefined
+      });
+    }
+  }, [updateMessage]);
+
+  const fetchResponseData = useCallback(async (requestId: string): Promise<Message> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${paths.CHAT_RESPONSE_API}/${requestId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch response data');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching response data:', error);
+      throw error;
+    }
+  }, []);
+
   const handleWebSocketChat = useCallback((
     placeholderId: string,
     requestId: string,
@@ -549,62 +606,57 @@ export function useChat() {
     }
   }, [activeConversationId, updateMessage, pollMessageStatus]);
 
-  const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
+  const sendMessageViaHttp = useCallback(async (content: string, placeholderId: string) => {
     try {
-      const pollInterval = setInterval(async () => {
-        const response = await fetch(`${API_BASE_URL}${paths.CHAT_STATUS_API}/${requestId}`);
-        
-        if (!response.ok) {
-          clearInterval(pollInterval);
-          throw new Error('Failed to poll message status');
-        }
-        
-        const data = await response.json();
-        
-        if (data.status === 'processing') {
-          updateMessage(placeholderId, { processingStage: data.stage });
-        } else if (data.status === 'complete') {
-          clearInterval(pollInterval);
-          
-          const responseData = await fetchResponseData(requestId);
-          
-          updateMessage(placeholderId, { 
-            ...responseData,
-            isLoading: false, 
-            processingStage: undefined
-          });
-        }
-      }, 1500);
+      const response = await fetch(`${API_BASE_URL}${paths.CHAT_API}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          conversationId: activeConversationId,
+        }),
+      });
       
-      setTimeout(() => {
-        clearInterval(pollInterval);
-      }, 120000);
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
       
-      return () => clearInterval(pollInterval);
-    } catch (error) {
-      console.error('Error polling message status:', error);
+      const data = await response.json();
+      const { requestId } = data;
+      
+      if (!requestId) {
+        throw new Error('No request ID returned');
+      }
+      
       updateMessage(placeholderId, { 
-        content: 'Sorry, there was an error processing your request.', 
+        requestId,
+        processingStage: data.stage || 'Processing...'
+      });
+      
+      try {
+        handleWebSocketChat(placeholderId, requestId, activeConversationId);
+      } catch (wsError) {
+        console.error('Error with WebSocket after HTTP request:', wsError);
+        pollMessageStatus(requestId, placeholderId);
+      }
+    } catch (apiError) {
+      console.error('Error sending message to API:', apiError);
+      
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+      
+      updateMessage(placeholderId, { 
+        content: 'Sorry, there was an error sending your message. Please try again.', 
         isLoading: false,
         processingStage: undefined
       });
     }
-  }, [updateMessage]);
-
-  const fetchResponseData = useCallback(async (requestId: string): Promise<Message> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}${paths.CHAT_RESPONSE_API}/${requestId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch response data');
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching response data:', error);
-      throw error;
-    }
-  }, []);
+  }, [activeConversationId, updateMessage, handleWebSocketChat, pollMessageStatus]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -796,58 +848,6 @@ export function useChat() {
       });
     }
   }, [activeConversationId, updateMessage, pollMessageStatus, fixConversationTopic, handleWebSocketChat]);
-
-  const sendMessageViaHttp = useCallback(async (content: string, placeholderId: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}${paths.CHAT_API}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content,
-          conversationId: activeConversationId,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
-      
-      const data = await response.json();
-      const { requestId } = data;
-      
-      if (!requestId) {
-        throw new Error('No request ID returned');
-      }
-      
-      updateMessage(placeholderId, { 
-        requestId,
-        processingStage: data.stage || 'Processing...'
-      });
-      
-      try {
-        handleWebSocketChat(placeholderId, requestId, activeConversationId);
-      } catch (wsError) {
-        console.error('Error with WebSocket after HTTP request:', wsError);
-        pollMessageStatus(requestId, placeholderId);
-      }
-    } catch (apiError) {
-      console.error('Error sending message to API:', apiError);
-      
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
-      
-      updateMessage(placeholderId, { 
-        content: 'Sorry, there was an error sending your message. Please try again.', 
-        isLoading: false,
-        processingStage: undefined
-      });
-    }
-  }, [activeConversationId, updateMessage, handleWebSocketChat, pollMessageStatus]);
 
   return {
     conversations,
