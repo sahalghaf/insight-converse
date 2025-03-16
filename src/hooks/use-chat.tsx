@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { paths } from '@/config/api-paths';
@@ -21,8 +21,6 @@ export function useChat() {
   
   const [activeConversationId, setActiveConversationId] = useState<string>(conversations[0].id);
   const [isLoading, setIsLoading] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const trackingWsRef = useRef<WebSocket | null>(null);
 
   const activeConversation = useMemo(() => {
     return conversations.find(conv => conv.id === activeConversationId) || conversations[0];
@@ -40,52 +38,6 @@ export function useChat() {
     
     return !hasUserMessages;
   }, [conversations]);
-
-  // WebSocket connection management
-  const connectWebSocket = useCallback((conversationId: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.close();
-    }
-    
-    const ws = new WebSocket(`${paths.WS_CHAT}?conversation_id=${conversationId}`);
-    
-    ws.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-    
-    ws.onclose = () => {
-      console.log('WebSocket connection closed');
-    };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-    
-    wsRef.current = ws;
-  }, []);
-
-  const disconnectWebSocket = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    
-    if (trackingWsRef.current && trackingWsRef.current.readyState === WebSocket.OPEN) {
-      trackingWsRef.current.close();
-      trackingWsRef.current = null;
-    }
-  }, []);
-
-  // Connect WebSocket when active conversation changes
-  useEffect(() => {
-    if (activeConversationId) {
-      connectWebSocket(activeConversationId);
-    }
-
-    return () => {
-      disconnectWebSocket();
-    };
-  }, [activeConversationId, connectWebSocket, disconnectWebSocket]);
 
   // Fetch a specific conversation with its messages
   const fetchConversation = useCallback(async (id: string) => {
@@ -424,71 +376,6 @@ export function useChat() {
     );
   }, [activeConversationId]);
 
-  const setupTrackingWebSocket = useCallback((requestId: string, placeholderId: string) => {
-    if (trackingWsRef.current && trackingWsRef.current.readyState === WebSocket.OPEN) {
-      trackingWsRef.current.close();
-    }
-    
-    const trackingWs = new WebSocket(`${paths.WS_CHAT_REQUEST(requestId)}?conversation_id=${activeConversationId}`);
-    
-    trackingWs.onopen = () => {
-      console.log(`Tracking connection established for requestId: ${requestId}`);
-      // Small delay to ensure backend processes connection before closing the other
-      setTimeout(() => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          console.log('Closing initial connection now that tracking connection is open');
-          wsRef.current.close();
-        }
-      }, 500);
-    };
-    
-    trackingWs.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        
-        if (data.status === 'processing') {
-          updateMessage(placeholderId, { processingStage: data.stage });
-        } else if (data.status === 'complete') {
-          updateMessage(placeholderId, { 
-            content: data.content,
-            isLoading: false, 
-            processingStage: undefined
-          });
-          
-          // Close tracking websocket once response is complete
-          trackingWs.close();
-        }
-      } catch (error) {
-        console.error('Error handling WebSocket message:', error);
-      }
-    };
-    
-    trackingWs.onclose = () => {
-      console.log(`Tracking connection closed for requestId: ${requestId}`);
-      
-      // Reconnect main WS if tracking one is closed
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        connectWebSocket(activeConversationId);
-      }
-    };
-    
-    trackingWs.onerror = (error) => {
-      console.error('Tracking WebSocket error:', error);
-      updateMessage(placeholderId, { 
-        content: 'Sorry, there was an error processing your request.', 
-        isLoading: false,
-        processingStage: undefined
-      });
-      
-      // Reconnect main WS if tracking one errors
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        connectWebSocket(activeConversationId);
-      }
-    };
-    
-    trackingWsRef.current = trackingWs;
-  }, [activeConversationId, connectWebSocket, updateMessage]);
-
   const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
     try {
       const pollInterval = setInterval(async () => {
@@ -624,10 +511,7 @@ export function useChat() {
           processingStage: data.stage || 'Processing...'
         });
         
-        // Start WebSocket tracking for this specific request
-        setupTrackingWebSocket(requestId, placeholderMessage.id);
-        
-        // Also start polling as a fallback
+        // Start polling for status updates
         pollMessageStatus(requestId, placeholderMessage.id);
       } catch (apiError) {
         console.error('Error sending message to API:', apiError);
@@ -655,7 +539,7 @@ export function useChat() {
         variant: "destructive",
       });
     }
-  }, [activeConversationId, updateMessage, setupTrackingWebSocket, pollMessageStatus, fixConversationTopic]);
+  }, [activeConversationId, updateMessage, pollMessageStatus, fixConversationTopic]);
 
   return {
     conversations,
