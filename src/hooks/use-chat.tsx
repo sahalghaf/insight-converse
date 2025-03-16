@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,7 +21,6 @@ export function useChat() {
   
   const [activeConversationId, setActiveConversationId] = useState<string>(conversations[0].id);
   const [isLoading, setIsLoading] = useState(false);
-  // WebSocket connection references
   const wsRef = useRef<WebSocket | null>(null);
   const activeRequestIdRef = useRef<string | null>(null);
 
@@ -30,7 +28,6 @@ export function useChat() {
     return conversations.find(conv => conv.id === activeConversationId) || conversations[0];
   }, [conversations, activeConversationId]);
 
-  // Clean up WebSocket connection on unmount or conversation change
   useEffect(() => {
     return () => {
       if (wsRef.current) {
@@ -40,12 +37,10 @@ export function useChat() {
     };
   }, [activeConversationId]);
 
-  // Add a function to check if a conversation is empty (has no user messages)
   const isConversationEmpty = useCallback((conversationId: string) => {
     const conversation = conversations.find(conv => conv.id === conversationId);
     if (!conversation) return true;
     
-    // Check for user messages (ignore placeholder/loading messages)
     const hasUserMessages = conversation.messages.some(
       msg => msg.role === 'user' && msg.content && msg.content.trim() !== ''
     );
@@ -53,7 +48,6 @@ export function useChat() {
     return !hasUserMessages;
   }, [conversations]);
 
-  // Fetch a specific conversation with its messages
   const fetchConversation = useCallback(async (id: string) => {
     try {
       setIsLoading(true);
@@ -65,7 +59,6 @@ export function useChat() {
       
       const data = await response.json();
       
-      // Update the conversation in state
       setConversations(prev => 
         prev.map(conv => 
           conv.id === id ? { ...data } : conv
@@ -90,7 +83,6 @@ export function useChat() {
     try {
       setIsLoading(true);
       
-      // Create a new conversation locally first to ensure we have a valid state
       const newId = uuidv4();
       const newConversation: Conversation = {
         id: newId,
@@ -100,11 +92,9 @@ export function useChat() {
         updatedAt: Date.now(),
       };
       
-      // Update state with the new conversation
       setConversations(prev => [newConversation, ...prev]);
       setActiveConversationId(newId);
       
-      // Then try to create on server
       try {
         const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}`, {
           method: 'POST',
@@ -124,7 +114,6 @@ export function useChat() {
         
         const serverConversation = await response.json();
         
-        // Update with server data if available
         setConversations(prev => 
           prev.map(conv => 
             conv.id === newId ? { ...serverConversation } : conv
@@ -145,7 +134,6 @@ export function useChat() {
         variant: "default",
       });
       
-      // Ensure we always have a local fallback
       const fallbackConversation: Conversation = {
         id: uuidv4(),
         title,
@@ -166,11 +154,10 @@ export function useChat() {
   const updateConversationTitle = useCallback(async (
     id: string, 
     title: string, 
-    updateLocalFirst = true // Flag to control update order
+    updateLocalFirst = true
   ) => {
     if (!title.trim()) return;
     
-    // Update local state first for immediate feedback if specified
     if (updateLocalFirst) {
       setConversations(prev => 
         prev.map(conv => 
@@ -189,7 +176,6 @@ export function useChat() {
     try {
       setIsLoading(true);
       
-      // Update conversation on server
       const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}/${id}`, {
         method: 'PUT',
         headers: {
@@ -204,7 +190,6 @@ export function useChat() {
       
       const updatedConversation = await response.json();
       
-      // Update local state if we didn't do it already or sync with server timestamp
       if (!updateLocalFirst) {
         setConversations(prev => 
           prev.map(conv => 
@@ -222,7 +207,6 @@ export function useChat() {
     } catch (error) {
       console.error('Error updating conversation title:', error);
       
-      // Only show error if we didn't already update locally
       if (!updateLocalFirst) {
         toast({
           title: "Warning",
@@ -231,7 +215,6 @@ export function useChat() {
         });
       }
       
-      // Always make sure we're not stuck in generating state
       setConversations(prev => 
         prev.map(conv => 
           conv.id === id && conv.isGeneratingTitle
@@ -248,7 +231,6 @@ export function useChat() {
     try {
       setIsLoading(true);
       
-      // Delete conversation on server
       const response = await fetch(`${API_BASE_URL}${paths.CONVERSATION_API}/${id}`, {
         method: 'DELETE',
       });
@@ -257,13 +239,11 @@ export function useChat() {
         throw new Error('Failed to delete conversation');
       }
       
-      // Update local state
       setConversations(prev => {
         const filtered = prev.filter(conv => conv.id !== id);
         if (id === activeConversationId && filtered.length > 0) {
           setActiveConversationId(filtered[0].id);
         } else if (filtered.length === 0) {
-          // Create a new conversation if all were deleted
           const newConv = {
             id: uuidv4(),
             title: 'New Conversation',
@@ -278,7 +258,6 @@ export function useChat() {
     } catch (error) {
       console.error('Error deleting conversation:', error);
       
-      // Fallback to local deletion
       setConversations(prev => {
         const filtered = prev.filter(conv => conv.id !== id);
         if (id === activeConversationId && filtered.length > 0) {
@@ -306,9 +285,7 @@ export function useChat() {
     }
   }, [activeConversationId]);
 
-  // Fix/generate a topic based on the conversation content
   const fixConversationTopic = useCallback(async (conversationId: string, message: string) => {
-    // 1. Optimistic update - Show a temporary indication right away
     setConversations(prev => 
       prev.map(conv => 
         conv.id === conversationId 
@@ -318,7 +295,6 @@ export function useChat() {
     );
     
     try {
-      // Safely handle API request
       let newTitle = '';
       
       try {
@@ -345,7 +321,6 @@ export function useChat() {
         }
       } catch (apiError) {
         console.error('Error fixing topic:', apiError);
-        // Generate a fallback title
         newTitle = `Chat ${new Date().toLocaleString(undefined, {
           month: 'short',
           day: 'numeric',
@@ -354,13 +329,11 @@ export function useChat() {
         })}`;
       }
       
-      // Update conversation title with the new title
       await updateConversationTitle(conversationId, newTitle);
       return newTitle;
     } catch (error) {
       console.error('Error in fixConversationTopic:', error);
       
-      // Final fallback to ensure we always update the title
       const fallbackTitle = `Chat ${new Date().toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
@@ -390,21 +363,19 @@ export function useChat() {
     );
   }, [activeConversationId]);
 
-  // WebSocket handler for chat messages
   const handleWebSocketChat = useCallback((
     placeholderId: string,
     requestId: string,
     conversationId: string
   ) => {
-    // Close existing connection if any
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
 
+    let pingInterval: NodeJS.Timeout | null = null;
+
     try {
-      // Create a new WebSocket connection for this specific request
-      // UPDATED: Using URL object instead of template string
       const wsUrl = new URL(paths.WS_CHAT_REQUEST(requestId));
       wsUrl.searchParams.append('conversation_id', conversationId);
       const ws = new WebSocket(wsUrl.toString());
@@ -412,8 +383,25 @@ export function useChat() {
       wsRef.current = ws;
       activeRequestIdRef.current = requestId;
 
-      ws.onopen = () => {
-        console.log('WebSocket connection established for request:', requestId);
+      ws.onopen = (event) => {
+        console.log('WebSocket connection established for request:', requestId, event);
+        
+        pingInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ 
+                type: "ping", 
+                timestamp: Date.now(),
+                requestId
+              }));
+              console.log('Ping sent for request:', requestId);
+            } catch (pingError) {
+              console.error('Error sending ping:', pingError);
+            }
+          } else {
+            if (pingInterval) clearInterval(pingInterval);
+          }
+        }, 30000);
       };
 
       ws.onmessage = (event) => {
@@ -421,11 +409,14 @@ export function useChat() {
           const data = JSON.parse(event.data);
           console.log('WebSocket message received:', data);
 
+          if (data.type === 'pong') {
+            console.log('Received pong response at:', new Date().toISOString());
+            return;
+          }
+
           if (data.status === 'processing') {
-            // Update the placeholder message with the current processing stage
             updateMessage(placeholderId, { processingStage: data.stage || 'Processing...' });
           } else if (data.status === 'complete') {
-            // Update with the final message content, visuals, tables
             updateMessage(placeholderId, {
               content: data.content || '',
               visuals: data.visuals || [],
@@ -434,12 +425,15 @@ export function useChat() {
               processingStage: undefined
             });
 
-            // Close the WebSocket as we've received the complete response
+            if (pingInterval) {
+              clearInterval(pingInterval);
+              pingInterval = null;
+            }
+
             ws.close();
             wsRef.current = null;
             activeRequestIdRef.current = null;
           } else if (data.status === 'error') {
-            // Handle error case
             updateMessage(placeholderId, {
               content: data.message || 'Sorry, there was an error processing your request.',
               isLoading: false,
@@ -452,17 +446,28 @@ export function useChat() {
               variant: "destructive",
             });
             
+            if (pingInterval) {
+              clearInterval(pingInterval);
+              pingInterval = null;
+            }
+            
             ws.close();
             wsRef.current = null;
             activeRequestIdRef.current = null;
           }
         } catch (parseError) {
-          console.error('Error parsing WebSocket message:', parseError);
+          console.error('Error parsing WebSocket message:', parseError, 'Raw data:', event.data);
           updateMessage(placeholderId, {
             content: 'Error processing response from server.',
             isLoading: false,
             processingStage: undefined
           });
+          
+          if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+          }
+          
           ws.close();
           wsRef.current = null;
           activeRequestIdRef.current = null;
@@ -470,7 +475,10 @@ export function useChat() {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('WebSocket error details:', error);
+        console.error('WebSocket connection URL:', wsUrl.toString());
+        console.error('WebSocket state:', ws.readyState);
+        
         updateMessage(placeholderId, {
           content: 'Connection error. Please try again later.',
           isLoading: false,
@@ -483,21 +491,27 @@ export function useChat() {
           variant: "destructive",
         });
         
-        // If WebSocket fails, we can fall back to the polling method
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        
         pollMessageStatus(requestId, placeholderId);
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket connection closed:', event);
+        console.log('WebSocket connection closed:', event.code, event.reason, 'For request:', requestId);
         
-        // If closed unexpectedly and we were still processing
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        
         if (activeRequestIdRef.current === requestId) {
-          // Check if the placeholder still shows loading
           setConversations(prev => {
             const activeConv = prev.find(conv => conv.id === conversationId);
             const placeholderMsg = activeConv?.messages.find(msg => msg.id === placeholderId);
             
-            // If still loading, fall back to polling
             if (placeholderMsg?.isLoading) {
               console.log('WebSocket closed while still loading, falling back to polling');
               pollMessageStatus(requestId, placeholderId);
@@ -511,6 +525,11 @@ export function useChat() {
       };
 
       return () => {
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        
         if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
           ws.close();
           wsRef.current = null;
@@ -519,14 +538,17 @@ export function useChat() {
       };
     } catch (error) {
       console.error('Error setting up WebSocket:', error);
-      // Fall back to polling if WebSocket setup fails
+      
+      if (pingInterval) {
+        clearInterval(pingInterval);
+      }
+      
       pollMessageStatus(requestId, placeholderId);
       
       return () => {};
     }
   }, [activeConversationId, updateMessage]);
 
-  // Keep the polling implementation as a fallback
   const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
     try {
       const pollInterval = setInterval(async () => {
@@ -539,28 +561,24 @@ export function useChat() {
         
         const data = await response.json();
         
-        // Update processing stage
         if (data.status === 'processing') {
           updateMessage(placeholderId, { processingStage: data.stage });
         } else if (data.status === 'complete') {
           clearInterval(pollInterval);
           
-          // Fetch the complete response
           const responseData = await fetchResponseData(requestId);
           
-          // Replace placeholder with actual response
           updateMessage(placeholderId, { 
             ...responseData,
             isLoading: false, 
             processingStage: undefined
           });
         }
-      }, 1500); // Poll every 1.5 seconds
+      }, 1500);
       
-      // Clean up interval after 2 minutes (timeout)
       setTimeout(() => {
         clearInterval(pollInterval);
-      }, 120000); // 2 minutes
+      }, 120000);
       
       return () => clearInterval(pollInterval);
     } catch (error) {
@@ -592,7 +610,6 @@ export function useChat() {
     if (!content.trim()) return;
     
     try {
-      // Create user message
       const userMessage: Message = {
         id: uuidv4(),
         role: 'user',
@@ -600,7 +617,6 @@ export function useChat() {
         timestamp: Date.now(),
       };
       
-      // Create placeholder for assistant message
       const placeholderMessage: Message = {
         id: uuidv4(),
         role: 'assistant',
@@ -610,7 +626,6 @@ export function useChat() {
         processingStage: 'Contemplating...',
       };
       
-      // Update conversation with user message and placeholder
       setConversations(prev => {
         const updated = prev.map(conv => 
           conv.id === activeConversationId 
@@ -622,99 +637,127 @@ export function useChat() {
             : conv
         );
         
-        // Check if this is the first message and generate a title
-        const activeConv = updated.find(conv => conv.id === activeConversationId);
-        if (activeConv && activeConv.messages.length === 2) {
-          // Only user message and placeholder, meaning this is the first real message
+        if (activeConversationId && activeConversationId === conversations[0].id) {
           fixConversationTopic(activeConversationId, content).catch(console.error);
         }
         
         return updated;
       });
       
-      // Try to use WebSockets first with fallback to HTTP API
       try {
-        // Method 1: Try the WebSocket-first approach
-        // UPDATED: Using URL object instead of template string
         const wsUrl = new URL(paths.WS_CHAT);
         wsUrl.searchParams.append('conversation_id', activeConversationId);
         const wsConnection = new WebSocket(wsUrl.toString());
 
         let requestId: string | null = null;
         let trackingSetUp = false;
+        let pingInterval: NodeJS.Timeout | null = null;
         
-        wsConnection.onopen = () => {
-          console.log('Initial WebSocket connection opened');
-          // Send the message through WebSocket
+        wsConnection.onopen = (event) => {
+          console.log('Initial WebSocket connection opened:', event);
+          
+          pingInterval = setInterval(() => {
+            if (wsConnection.readyState === WebSocket.OPEN) {
+              try {
+                wsConnection.send(JSON.stringify({ 
+                  type: "ping", 
+                  timestamp: Date.now() 
+                }));
+                console.log('Ping sent on initial connection');
+              } catch (pingError) {
+                console.error('Error sending ping on initial connection:', pingError);
+              }
+            } else {
+              if (pingInterval) clearInterval(pingInterval);
+            }
+          }, 30000);
+          
           wsConnection.send(JSON.stringify({
             content,
             conversationId: activeConversationId
           }));
         };
         
-        // Set a timeout to fall back to HTTP if WebSocket is taking too long
         const wsTimeout = setTimeout(() => {
           if (wsConnection.readyState !== WebSocket.OPEN) {
             console.log('WebSocket connection timeout. Falling back to HTTP.');
+            
+            if (pingInterval) {
+              clearInterval(pingInterval);
+              pingInterval = null;
+            }
+            
             wsConnection.close();
-            // Fall back to HTTP
             sendMessageViaHttp(content, placeholderMessage.id);
           }
-        }, 3000); // 3 second timeout
+        }, 3000);
         
         wsConnection.onmessage = (event) => {
           clearTimeout(wsTimeout);
           try {
             const data = JSON.parse(event.data);
+            
             if (data.requestId && !requestId) {
               requestId = data.requestId;
               console.log('Received request ID via WebSocket:', requestId);
               
-              // IMPROVEMENT: Set up tracking connection SOONER (before closing the initial connection)
               if (!trackingSetUp) {
                 trackingSetUp = true;
-                // Set up the WebSocket handler for continuous updates
                 handleWebSocketChat(
                   placeholderMessage.id, 
                   requestId, 
                   activeConversationId
                 );
                 
-                // IMPROVEMENT: Add a small delay before closing the initial connection
                 setTimeout(() => {
-                  // Close this initial connection as we'll use the dedicated connection for updates
                   if (wsConnection.readyState === WebSocket.OPEN) {
                     wsConnection.close();
                   }
-                }, 100); // 100ms delay to ensure backend has time to process
+                }, 100);
               }
             }
           } catch (err) {
-            console.error('Error processing WebSocket init message:', err);
+            console.error('Error processing WebSocket init message:', err, 'Raw data:', event.data);
+            
+            if (pingInterval) {
+              clearInterval(pingInterval);
+              pingInterval = null;
+            }
+            
             wsConnection.close();
-            // Fall back to HTTP
             sendMessageViaHttp(content, placeholderMessage.id);
           }
         };
         
         wsConnection.onerror = (error) => {
           clearTimeout(wsTimeout);
-          console.error('WebSocket connection error:', error);
-          // Fall back to HTTP
+          console.error('WebSocket connection error details:', error);
+          console.error('WebSocket connection URL:', wsUrl.toString());
+          console.error('WebSocket state:', wsConnection.readyState);
+          
+          if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+          }
+          
           sendMessageViaHttp(content, placeholderMessage.id);
         };
         
         wsConnection.onclose = (event) => {
           clearTimeout(wsTimeout);
-          console.log('Initial WebSocket connection closed:', event);
-          // Only fall back if we haven't received a request ID
+          console.log('Initial WebSocket connection closed:', event.code, event.reason);
+          
+          if (pingInterval) {
+            clearInterval(pingInterval);
+            pingInterval = null;
+          }
+          
           if (!requestId && !trackingSetUp) {
             sendMessageViaHttp(content, placeholderMessage.id);
           }
         };
       } catch (wsError) {
         console.error('Error setting up initial WebSocket:', wsError);
-        // Fall back to HTTP
         sendMessageViaHttp(content, placeholderMessage.id);
       }
     } catch (error) {
@@ -728,7 +771,6 @@ export function useChat() {
     }
   }, [activeConversationId, updateMessage, pollMessageStatus, fixConversationTopic, handleWebSocketChat]);
 
-  // HTTP fallback method
   const sendMessageViaHttp = useCallback(async (content: string, placeholderId: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}${paths.CHAT_API}`, {
@@ -753,31 +795,26 @@ export function useChat() {
         throw new Error('No request ID returned');
       }
       
-      // Update placeholder with request ID
       updateMessage(placeholderId, { 
         requestId,
         processingStage: data.stage || 'Processing...'
       });
       
-      // Try WebSocket first for updates, with polling as fallback
       try {
         handleWebSocketChat(placeholderId, requestId, activeConversationId);
       } catch (wsError) {
         console.error('Error with WebSocket after HTTP request:', wsError);
-        // Fall back to polling
         pollMessageStatus(requestId, placeholderId);
       }
     } catch (apiError) {
       console.error('Error sending message to API:', apiError);
       
-      // Show error toast
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
         variant: "destructive",
       });
       
-      // Update placeholder with error message
       updateMessage(placeholderId, { 
         content: 'Sorry, there was an error sending your message. Please try again.', 
         isLoading: false,
