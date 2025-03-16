@@ -384,7 +384,7 @@ export function useChat() {
       activeRequestIdRef.current = requestId;
 
       ws.onopen = (event) => {
-        console.log('WebSocket connection established for request:', requestId, event);
+        console.log('WebSocket tracking connection established for request:', requestId, event);
         
         pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -500,7 +500,7 @@ export function useChat() {
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason, 'For request:', requestId);
+        console.log('WebSocket tracking connection closed:', event.code, event.reason, 'For request:', requestId);
         
         if (pingInterval) {
           clearInterval(pingInterval);
@@ -547,7 +547,7 @@ export function useChat() {
       
       return () => {};
     }
-  }, [activeConversationId, updateMessage]);
+  }, [activeConversationId, updateMessage, pollMessageStatus]);
 
   const pollMessageStatus = useCallback(async (requestId: string, placeholderId: string) => {
     try {
@@ -650,6 +650,7 @@ export function useChat() {
         const wsConnection = new WebSocket(wsUrl.toString());
 
         let requestId: string | null = null;
+        let trackingWs: WebSocket | null = null;
         let trackingSetUp = false;
         let pingInterval: NodeJS.Timeout | null = null;
         
@@ -703,17 +704,42 @@ export function useChat() {
               
               if (!trackingSetUp) {
                 trackingSetUp = true;
-                handleWebSocketChat(
-                  placeholderMessage.id, 
-                  requestId, 
-                  activeConversationId
-                );
                 
-                setTimeout(() => {
+                // Set up tracking connection
+                const trackingUrl = new URL(paths.WS_CHAT_REQUEST(requestId));
+                trackingUrl.searchParams.append('conversation_id', activeConversationId);
+                trackingWs = new WebSocket(trackingUrl.toString());
+                
+                trackingWs.onopen = () => {
+                  console.log(`Tracking connection established for requestId: ${requestId}`);
+                  
+                  // Set up WebSocket chat handling
+                  handleWebSocketChat(
+                    placeholderMessage.id, 
+                    requestId, 
+                    activeConversationId
+                  );
+                  
+                  // Small delay to ensure backend processes connection before closing the other
+                  setTimeout(() => {
+                    if (wsConnection.readyState === WebSocket.OPEN) {
+                      console.log('Closing initial connection now that tracking connection is open');
+                      wsConnection.close();
+                    }
+                  }, 500);
+                };
+                
+                trackingWs.onerror = (error) => {
+                  console.error('Error establishing tracking connection:', error);
+                  console.error('Tracking WebSocket URL:', trackingUrl.toString());
+                  console.error('Tracking WebSocket state:', trackingWs?.readyState);
+                  
                   if (wsConnection.readyState === WebSocket.OPEN) {
                     wsConnection.close();
                   }
-                }, 100);
+                  
+                  pollMessageStatus(requestId, placeholderMessage.id);
+                };
               }
             }
           } catch (err) {
