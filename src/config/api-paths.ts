@@ -12,4 +12,6 @@ export const paths = {
   CONVERSATION_API: '/api/conversations',
   FIX_TOPIC_API: '/api/conversations/fixTopic',
   FEEDBACK_API: '/api/feedback',
+  WS_CHAT: 'ws://localhost:9800/ws/chat',
+  WS_CHAT_REQUEST: (requestId: string) => `ws://localhost:9800/ws/chat/${requestId}`,
 };
