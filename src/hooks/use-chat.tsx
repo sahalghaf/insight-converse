@@ -632,6 +632,8 @@ export function useChat() {
       try {
         // Method 1: Try the WebSocket-first approach
         const wsConnection = new WebSocket(`${paths.WS_CHAT}?conversation_id=${activeConversationId}`);
+        let requestId: string | null = null;
+        let trackingSetUp = false;
         
         wsConnection.onopen = () => {
           console.log('Initial WebSocket connection opened');
@@ -656,16 +658,28 @@ export function useChat() {
           clearTimeout(wsTimeout);
           try {
             const data = JSON.parse(event.data);
-            if (data.requestId) {
-              console.log('Received request ID via WebSocket:', data.requestId);
-              // Close this initial connection as we'll establish a new one for updates
-              wsConnection.close();
-              // Set up the WebSocket handler for continuous updates
-              handleWebSocketChat(
-                placeholderMessage.id, 
-                data.requestId, 
-                activeConversationId
-              );
+            if (data.requestId && !requestId) {
+              requestId = data.requestId;
+              console.log('Received request ID via WebSocket:', requestId);
+              
+              // IMPROVEMENT: Set up tracking connection SOONER (before closing the initial connection)
+              if (!trackingSetUp) {
+                trackingSetUp = true;
+                // Set up the WebSocket handler for continuous updates
+                handleWebSocketChat(
+                  placeholderMessage.id, 
+                  requestId, 
+                  activeConversationId
+                );
+                
+                // IMPROVEMENT: Add a small delay before closing the initial connection
+                setTimeout(() => {
+                  // Close this initial connection as we'll use the dedicated connection for updates
+                  if (wsConnection.readyState === WebSocket.OPEN) {
+                    wsConnection.close();
+                  }
+                }, 100); // 100ms delay to ensure backend has time to process
+              }
             }
           } catch (err) {
             console.error('Error processing WebSocket init message:', err);
@@ -686,7 +700,7 @@ export function useChat() {
           clearTimeout(wsTimeout);
           console.log('Initial WebSocket connection closed:', event);
           // Only fall back if we haven't received a request ID
-          if (!activeRequestIdRef.current) {
+          if (!requestId && !trackingSetUp) {
             sendMessageViaHttp(content, placeholderMessage.id);
           }
         };
