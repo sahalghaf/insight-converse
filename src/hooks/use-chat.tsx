@@ -1,12 +1,8 @@
-
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Conversation, Message } from '@/types/chat';
 import { v4 as uuidv4 } from 'uuid';
-import { paths } from '@/config/api-paths';
+import { paths, API_BASE_URL } from '@/config/api-paths';
 import { toast } from '@/components/ui/use-toast';
-
-// Base URL for API calls
-const API_BASE_URL = 'http://localhost:9800';
 
 export function useChat() {
   const [conversations, setConversations] = useState<Conversation[]>(() => {

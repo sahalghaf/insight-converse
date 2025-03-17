@@ -4,7 +4,10 @@
  * These can be modified based on environment
  */
 
-// Simplify by using relative paths - backend server is at localhost:9800
+// API base URL configuration
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.intento.freston.io';
+
+// API endpoint paths (without the base URL)
 export const paths = {
   CHAT_API: '/api/chat',
   CHAT_STATUS_API: '/api/chat/status',
